@@ -56,6 +56,7 @@ import com.winlator.contents.ContentsManager
 import com.winlator.core.FileUtils
 import com.winlator.core.GPUInformation
 import com.winlator.core.TarCompressorUtils
+import com.winlator.core.WineRegistryEditor
 import com.winlator.xenvironment.ImageFs
 import com.winlator.xenvironment.ImageFsInstaller
 import kotlinx.coroutines.CancellationException
@@ -921,6 +922,7 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, onS
         container.saveData()
     }
     check(containerManager.hasContainer(CONTAINER_ID)) { "Container creation failed. Check system storage and logs." }
+    containerManager.getContainerById(CONTAINER_ID)?.let(::ensureRegionRegistry)
     return CONTAINER_ID
 }
 
@@ -980,9 +982,32 @@ private val CONFIG_DEFAULTS = linkedMapOf(
     "groundEffectDensity" to "\"16\"",
     "GamePadEnable" to "\"1\"",
     "InputDeviceInterfaceStyle" to "\"1\"",
+    // First-run prompts. The client saves these only on a clean exit, which the app never does, so force them.
+    "showPhotosensitivityWarning" to "\"0\"",
+    "showScreenNarrationDialog" to "\"0\"",
+    "accessibilityScreenNarrationEnabled" to "\"0\"",
+    "playIntroMovie" to "\"99\"",
 )
 
-private val FORCED_CONFIG_KEYS = listOf("gxApi", "RenderScale", "ResampleQuality", "GamePadEnable", "InputDeviceInterfaceStyle")
+private val FORCED_CONFIG_KEYS = listOf(
+    "gxApi", "RenderScale", "ResampleQuality", "GamePadEnable", "InputDeviceInterfaceStyle",
+    "showPhotosensitivityWarning", "showScreenNarrationDialog", "accessibilityScreenNarrationEnabled", "playIntroMovie",
+)
+
+// Region/locale the client asks for when Battle.net did not launch it. Wine only flushes user.reg on a clean
+// wineserver exit, so the in-game choice is lost; write it before every boot instead.
+private const val GAME_REGION = "EU"
+private const val GAME_LOCALE = "enUS"
+
+private fun ensureRegionRegistry(container: Container) {
+    WineRegistryEditor(File(container.rootDir, ".wine/user.reg")).use { reg ->
+        val launch = "Software\\Blizzard Entertainment\\Battle.net\\Launch Options\\WoW"
+        reg.setStringValue(launch, "REGION", GAME_REGION)
+        reg.setStringValue(launch, "LOCALE", GAME_LOCALE)
+        reg.setStringValue(launch, "LOCALE_AUDIO", GAME_LOCALE)
+        reg.setStringValue("Software\\Blizzard Entertainment\\Launcher", "Locale", GAME_LOCALE)
+    }
+}
 
 private val LEGACY_CONFIG_VALUES = mapOf(
     "farclip" to "\"3000\"",
