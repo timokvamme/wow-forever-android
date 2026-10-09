@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -56,7 +57,6 @@ import com.winlator.contents.ContentsManager
 import com.winlator.core.FileUtils
 import com.winlator.core.GPUInformation
 import com.winlator.core.TarCompressorUtils
-import com.winlator.core.WineRegistryEditor
 import com.winlator.xenvironment.ImageFs
 import com.winlator.xenvironment.ImageFsInstaller
 import kotlinx.coroutines.CancellationException
@@ -91,6 +91,7 @@ fun WoWForeverScreen(
     var launchJob by remember { mutableStateOf<Job?>(null) }
     var hasSavedLogin by remember { mutableStateOf(BattleNetSignIn.load(context) != null) }
     var showLoginDialog by remember { mutableStateOf(false) }
+    var showGameSettings by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf(READY_STATUS) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showStoragePermissionDialog by remember { mutableStateOf(false) }
@@ -600,6 +601,7 @@ fun WoWForeverScreen(
                             }
                         }
                     }
+                    LinkButton("Game Settings", Icons.Default.Settings) { showGameSettings = true }
                 }
             }
 
@@ -614,6 +616,17 @@ fun WoWForeverScreen(
                 showLoginDialog = false
                 BattleNetSignIn.save(context, login)
                 hasSavedLogin = true
+            },
+        )
+    }
+
+    if (showGameSettings) {
+        GameSettingsDialog(
+            initial = GameSettings.load(context),
+            onDismiss = { showGameSettings = false },
+            onConfirm = {
+                showGameSettings = false
+                GameSettings.save(context, it)
             },
         )
     }
@@ -896,7 +909,7 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, onS
 
     check(File(gameRoot, BUILD_INFO).exists()) { "Missing $BUILD_INFO in $gameRoot. Copy it from your WoW install." }
     try {
-        ensureGameConfig(gameRoot)
+        ensureGameConfig(gameRoot, GameSettings.configOverrides(GameSettings.load(context)))
     } catch (e: Exception) {
         if (e.isPermissionDenied()) throw StorageAccessDeniedException(e)
         throw e
@@ -928,7 +941,9 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, onS
         container.saveData()
     }
     check(containerManager.hasContainer(CONTAINER_ID)) { "Container creation failed. Check system storage and logs." }
-    containerManager.getContainerById(CONTAINER_ID)?.let(::ensureRegionRegistry)
+    containerManager.getContainerById(CONTAINER_ID)?.let {
+        GameSettings.applyRegion(File(it.rootDir, ".wine/user.reg"), GameSettings.load(context))
+    }
     return CONTAINER_ID
 }
 
@@ -988,32 +1003,9 @@ private val CONFIG_DEFAULTS = linkedMapOf(
     "groundEffectDensity" to "\"16\"",
     "GamePadEnable" to "\"1\"",
     "InputDeviceInterfaceStyle" to "\"1\"",
-    // First-run prompts. The client saves these only on a clean exit, which the app never does, so force them.
-    "showPhotosensitivityWarning" to "\"0\"",
-    "showScreenNarrationDialog" to "\"0\"",
-    "accessibilityScreenNarrationEnabled" to "\"0\"",
-    "playIntroMovie" to "\"99\"",
 )
 
-private val FORCED_CONFIG_KEYS = listOf(
-    "gxApi", "RenderScale", "ResampleQuality", "GamePadEnable", "InputDeviceInterfaceStyle",
-    "showPhotosensitivityWarning", "showScreenNarrationDialog", "accessibilityScreenNarrationEnabled", "playIntroMovie",
-)
-
-// Region/locale the client asks for when Battle.net did not launch it. Wine only flushes user.reg on a clean
-// wineserver exit, so the in-game choice is lost; write it before every boot instead.
-private const val GAME_REGION = "EU"
-private const val GAME_LOCALE = "enUS"
-
-private fun ensureRegionRegistry(container: Container) {
-    WineRegistryEditor(File(container.rootDir, ".wine/user.reg")).use { reg ->
-        val launch = "Software\\Blizzard Entertainment\\Battle.net\\Launch Options\\WoW"
-        reg.setStringValue(launch, "REGION", GAME_REGION)
-        reg.setStringValue(launch, "LOCALE", GAME_LOCALE)
-        reg.setStringValue(launch, "LOCALE_AUDIO", GAME_LOCALE)
-        reg.setStringValue("Software\\Blizzard Entertainment\\Launcher", "Locale", GAME_LOCALE)
-    }
-}
+private val FORCED_CONFIG_KEYS = listOf("gxApi", "RenderScale", "ResampleQuality", "GamePadEnable", "InputDeviceInterfaceStyle")
 
 private val LEGACY_CONFIG_VALUES = mapOf(
     "farclip" to "\"3000\"",
@@ -1028,7 +1020,7 @@ private val LEGACY_CONFIG_VALUES = mapOf(
     "RAIDcomponentTextureLevel" to "\"1\"",
 )
 
-private fun ensureGameConfig(root: File) {
+private fun ensureGameConfig(root: File, overrides: Map<String, String?>) {
     val flavorDir = File(root, FLAVOR_DIR)
     flavorDir.mkdirs()
     val flavorInfo = File(flavorDir, ".flavor.info")
@@ -1039,7 +1031,6 @@ private fun ensureGameConfig(root: File) {
     if (!configWtf.exists()) {
         configWtf.parentFile?.mkdirs()
         configWtf.writeText(CONFIG_DEFAULTS.entries.joinToString("\n") { "SET ${it.key} ${it.value}" } + "\n")
-        return
     }
 
     val original = configWtf.readLines().filterNot { it.startsWith("SET ResampleSharpness", ignoreCase = true) }
@@ -1055,7 +1046,8 @@ private fun ensureGameConfig(root: File) {
             LEGACY_CONFIG_VALUES[key] == value -> "SET $key ${CONFIG_DEFAULTS.getValue(key)}"
             else -> line
         }
-    } + CONFIG_DEFAULTS.filterKeys { it !in existingKeys }.map { (k, v) -> "SET $k $v" }
+    }.plus(CONFIG_DEFAULTS.filterKeys { it !in existingKeys }.map { (k, v) -> "SET $k $v" })
+        .let { GameSettings.applyOverrides(it, overrides) }
 
     if (updated != original) {
         configWtf.writeText(updated.joinToString("\n") + "\n")
