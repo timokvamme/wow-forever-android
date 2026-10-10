@@ -75,6 +75,10 @@ jobs:
             echo "keyPassword=$KEY_PASSWORD"
           } > app/keystores/keystore.properties
 
+      # The secrets Gradle plugin requires local.properties to exist; the app reads no keys from it.
+      - name: Write local.properties
+        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
+
       - name: Build release APK
         run: ./gradlew --no-daemon assembleModernRelease
 
