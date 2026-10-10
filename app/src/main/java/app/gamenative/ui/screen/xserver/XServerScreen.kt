@@ -985,6 +985,16 @@ fun XServerScreen(
         }
     }
 
+    // A DualSense/DualShock touchpad is merged into the gamepad's InputDevice and reports
+    // SOURCE_MOUSE/SOURCE_TOUCHPAD. Counting it as a mouse grabbed pointer capture and hid the
+    // on-screen controls as soon as the controller connected.
+    fun isPhysicalPointer(device: InputDevice): Boolean {
+        val isMouse = device.supportsSource(InputDevice.SOURCE_MOUSE) ||
+            device.supportsSource(InputDevice.SOURCE_MOUSE_RELATIVE) ||
+            device.supportsSource(InputDevice.SOURCE_TOUCHPAD)
+        return isMouse && !ExternalController.isGameController(device)
+    }
+
     fun scanForExternalDevices() {
         val deviceIds = InputDevice.getDeviceIds()
         hasPhysicalKeyboard = deviceIds.any { id ->
@@ -994,10 +1004,8 @@ fun XServerScreen(
         }
         hasPhysicalMouse = deviceIds.any { id ->
             val device = InputDevice.getDevice(id) ?: return@any false
-            val isMouse = device.supportsSource(InputDevice.SOURCE_MOUSE) || device.supportsSource(InputDevice.SOURCE_MOUSE_RELATIVE) ||
-                          device.supportsSource(InputDevice.SOURCE_TOUCHPAD)
             val isExternal = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) device.isExternal else true
-            isMouse && !device.isVirtual && isExternal
+            isPhysicalPointer(device) && !device.isVirtual && isExternal
         }
         val controllerManager = ControllerManager.getInstance()
         controllerManager.autoAssignConnectedDevices()
@@ -1059,10 +1067,7 @@ fun XServerScreen(
                     areControlsVisible = false
                 }
             }
-            val isMouse = device.supportsSource(InputDevice.SOURCE_MOUSE) ||
-                    device.supportsSource(InputDevice.SOURCE_MOUSE_RELATIVE) ||
-                    device.supportsSource(InputDevice.SOURCE_TOUCHPAD)
-            if (isMouse) {
+            if (isPhysicalPointer(device)) {
                 hasPhysicalMouse = true
                 if (!hasUpdatedScreenGamepad && tryCapturePointer()) {
                     hasUpdatedScreenGamepad = true
@@ -1578,7 +1583,8 @@ fun XServerScreen(
                     if (!handled) handled = winHandler.onGenericMotionEvent(it.event)
                 }
             }
-            if (PluviaApp.touchpadView?.hasPointerCapture() != true && !PluviaApp.isOverlayPaused) {
+            // Stick and trigger motion already reached the game; it is not a reason to grab the pointer.
+            if (!handled && PluviaApp.touchpadView?.hasPointerCapture() != true && !PluviaApp.isOverlayPaused) {
                 if ((it.event != null) && (it.event.device != null)) {
                     val device = it.event.device
                     val isExternal = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) device.isExternal else true

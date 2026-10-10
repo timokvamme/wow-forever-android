@@ -209,8 +209,15 @@ public class ExternalController {
     }
 
     private void processTriggerButton(MotionEvent event) {
-        float l = event.getAxisValue(event.getAxisValue(MotionEvent.AXIS_LTRIGGER) == 0.0f ? MotionEvent.AXIS_BRAKE : MotionEvent.AXIS_LTRIGGER);
-        float r = event.getAxisValue(event.getAxisValue(MotionEvent.AXIS_RTRIGGER) == 0.0f ? MotionEvent.AXIS_GAS : MotionEvent.AXIS_RTRIGGER);
+        float l;
+        float r;
+        if (DualSenseSupport.usesGenericLayout(event.getDevice())) {
+            l = DualSenseSupport.triggerValue(event, MotionEvent.AXIS_RX);
+            r = DualSenseSupport.triggerValue(event, MotionEvent.AXIS_RY);
+        } else {
+            l = event.getAxisValue(event.getAxisValue(MotionEvent.AXIS_LTRIGGER) == 0.0f ? MotionEvent.AXIS_BRAKE : MotionEvent.AXIS_LTRIGGER);
+            r = event.getAxisValue(event.getAxisValue(MotionEvent.AXIS_RTRIGGER) == 0.0f ? MotionEvent.AXIS_GAS : MotionEvent.AXIS_RTRIGGER);
+        }
         l = (l <= 0.01f) ? 0.0f : Math.min(1.0f, Math.max(0.0f, l));
         r = (r <= 0.01f) ? 0.0f : Math.min(1.0f, Math.max(0.0f, r));
         this.state.triggerL = l;
@@ -270,7 +277,8 @@ public class ExternalController {
     public boolean updateStateFromKeyEvent(KeyEvent event) {
         boolean z = false;
         boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
-        int keyCode = JoyConSupport.remapKeyCode(event.getDevice(), event);
+        int keyCode = DualSenseSupport.remapKeyCode(event.getDevice(), event,
+                JoyConSupport.remapKeyCode(event.getDevice(), event));
         int buttonIdx = getButtonIdxByKeyCode(keyCode);
         if (buttonIdx != -1) {
             if (buttonIdx == IDX_BUTTON_L2) {
@@ -416,6 +424,7 @@ public class ExternalController {
             return 0.0f;
         }
         InputDevice device = event.getDevice();
+        if (device == null) return 0.0f;
         InputDevice.MotionRange range = device.getMotionRange(axis, event.getSource());
         if (range != null) {
             float flat = range.getFlat();

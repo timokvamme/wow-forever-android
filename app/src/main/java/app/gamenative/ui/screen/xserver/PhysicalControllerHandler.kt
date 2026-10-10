@@ -11,6 +11,7 @@ import com.winlator.inputcontrols.Binding
 import com.winlator.inputcontrols.BindingCombo
 import com.winlator.inputcontrols.ControlElement
 import com.winlator.inputcontrols.ControlsProfile
+import com.winlator.inputcontrols.DualSenseSupport
 import com.winlator.inputcontrols.ExternalController
 import com.winlator.inputcontrols.ExternalControllerBinding
 import com.winlator.inputcontrols.GamepadState
@@ -176,7 +177,11 @@ class PhysicalControllerHandler(
      */
     fun onKeyEvent(event: KeyEvent): Boolean {
         if (profile != null && event.repeatCount == 0) {
-            val keyCode = JoyConSupport.remapKeyCode(event.device, event)
+            val keyCode = DualSenseSupport.remapKeyCode(
+                event.device,
+                event,
+                JoyConSupport.remapKeyCode(event.device, event),
+            )
             if (radialMenuPressed && !isRadialMenuOpenerDevice(event.deviceId)) return true
             val controller = profile?.getController(event.deviceId)
             if (controller != null) {
@@ -246,6 +251,10 @@ class PhysicalControllerHandler(
     }
 
     private fun deviceHasTriggerAxis(device: InputDevice?, keyCode: Int): Boolean {
+        // Generic.kl Sony pads report analog triggers on AXIS_RX/AXIS_RY.
+        if (DualSenseSupport.usesGenericLayout(device)) {
+            return keyCode == KeyEvent.KEYCODE_BUTTON_L2 || keyCode == KeyEvent.KEYCODE_BUTTON_R2
+        }
         return when (keyCode) {
             KeyEvent.KEYCODE_BUTTON_L2 ->
                 hasMotionRange(device, MotionEvent.AXIS_LTRIGGER) || hasMotionRange(device, MotionEvent.AXIS_BRAKE)
