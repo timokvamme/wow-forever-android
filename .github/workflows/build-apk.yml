@@ -2,8 +2,8 @@ name: Build APK
 
 # Pushing a version tag (git push origin v2.2.5) builds a signed APK, creates the GitHub release
 # if needed and attaches the APK, where the in-app updater (AppUpdater.kt) finds it. Publishing
-# a release from the GitHub UI does the same. "Run workflow" on the Actions tab builds one as a
-# downloadable artifact without making a release.
+# a release from the GitHub UI does the same. "Run workflow" on the Actions tab on main releases
+# the current versionName as v<versionName>; on any other branch it only uploads an artifact.
 #
 # Repository secrets (Settings > Secrets and variables > Actions):
 #   KEYSTORE_BASE64    the keystore file, base64 encoded (base64 -w0 my.jks)
@@ -83,6 +83,7 @@ jobs:
           out="WoW-Forever-$version.apk"
           cp app/build/outputs/apk/modern/release/app-modern-release.apk "$out"
           echo "file=$out" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -90,13 +91,13 @@ jobs:
           path: ${{ steps.apk.outputs.file }}
 
       - name: Create the release and attach the APK
-        if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name || github.ref_name }}
+          TAG: ${{ github.event.release.tag_name || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || format('v{0}', steps.apk.outputs.version) }}
         run: |
           if ! gh release view "$TAG" -R "${{ github.repository }}" > /dev/null 2>&1; then
-            gh release create "$TAG" -R "${{ github.repository }}" --title "WoW Forever $TAG" --notes "Built by GitHub Actions from $TAG."
+            gh release create "$TAG" -R "${{ github.repository }}" --target "$GITHUB_SHA" --title "WoW Forever $TAG" --notes "Built by GitHub Actions from $TAG."
           fi
           gh release upload "$TAG" "${{ steps.apk.outputs.file }}" --clobber -R "${{ github.repository }}"
 
