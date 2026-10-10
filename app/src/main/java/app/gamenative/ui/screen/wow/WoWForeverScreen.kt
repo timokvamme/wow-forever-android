@@ -1,8 +1,11 @@
 package app.gamenative.ui.screen.wow
 
 import android.content.Context
+import android.graphics.Point
+import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Environment
+import android.view.Display
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -908,8 +911,10 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, onS
     installBundledComponents(context, onStatus)
 
     check(File(gameRoot, BUILD_INFO).exists()) { "Missing $BUILD_INFO in $gameRoot. Copy it from your WoW install." }
+    val settings = GameSettings.load(context)
+    val screenSize = gameScreenSize(context, settings, gpu)
     try {
-        ensureGameConfig(gameRoot, GameSettings.configOverrides(GameSettings.load(context)))
+        ensureGameConfig(gameRoot, GameSettings.configOverrides(settings) + ("gxWindowedResolution" to screenSize))
     } catch (e: Exception) {
         if (e.isPermissionDenied()) throw StorageAccessDeniedException(e)
         throw e
@@ -931,7 +936,7 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, onS
 
     onStatus("Configuring ${gpu.label} container...")
     val containerManager = ContainerManager(context)
-    val config = containerConfig(gameRoot, gpu)
+    val config = containerConfig(gameRoot, gpu.copy(screenSize = screenSize))
     val container = containerManager.getContainerById(CONTAINER_ID)
     if (container == null) {
         onStatus("Creating prefix environment (first boot)...")
@@ -945,6 +950,15 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, onS
         GameSettings.applyRegion(File(it.rootDir, ".wine/user.reg"), GameSettings.load(context))
     }
     return CONTAINER_ID
+}
+
+/** Render size from the Resolution setting, fitted to the screen the game is launched on. */
+private fun gameScreenSize(context: Context, settings: GameSettings.Settings, gpu: GpuProfile): String {
+    val size = Point()
+    @Suppress("DEPRECATION")
+    context.getSystemService(DisplayManager::class.java)?.getDisplay(Display.DEFAULT_DISPLAY)?.getRealSize(size)
+    return GameSettings.screenSize(settings.resolution, gpu.screenSize, size.x, size.y)
+        .also { Timber.i("Game resolution %s (setting %s, display %dx%d)", it, settings.resolution, size.x, size.y) }
 }
 
 private fun containerConfig(gameRoot: File, gpu: GpuProfile): JSONObject {

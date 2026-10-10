@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.RadioButton
@@ -38,8 +40,24 @@ object GameSettings {
         TW("Taiwan", "TW"),
     }
 
+    /**
+     * The game's render size. "Fit screen" options match the aspect ratio of the screen the game
+     * is launched on (a foldable's inner or cover screen) at roughly the pixel count of the named
+     * 16:9 size, so they cost about the same GPU time.
+     */
+    enum class Resolution(val label: String, val pixels: Int? = null, val fixed: String? = null) {
+        AUTO("Default (720p on Snapdragon 8 Elite, else 1080p)"),
+        FIT_720("Fit screen, 720p class", pixels = 1280 * 720),
+        FIT_900("Fit screen, 900p class", pixels = 1600 * 900),
+        FIT_1080("Fit screen, 1080p class", pixels = 1920 * 1080),
+        P720("1280 x 720 (16:9)", fixed = "1280x720"),
+        P900("1600 x 900 (16:9)", fixed = "1600x900"),
+        P1080("1920 x 1080 (16:9)", fixed = "1920x1080"),
+    }
+
     data class Settings(
         val region: Region = Region.ASK,
+        val resolution: Resolution = Resolution.AUTO,
         val skipIntro: Boolean = true,
         val skipPhotosensitivity: Boolean = true,
         val skipNarrator: Boolean = true,
@@ -51,6 +69,7 @@ object GameSettings {
         val d = Settings()
         return Settings(
             region = runCatching { Region.valueOf(p.getString(KEY_REGION, d.region.name)!!) }.getOrDefault(d.region),
+            resolution = runCatching { Resolution.valueOf(p.getString(KEY_RESOLUTION, d.resolution.name)!!) }.getOrDefault(d.resolution),
             skipIntro = p.getBoolean(KEY_SKIP_INTRO, d.skipIntro),
             skipPhotosensitivity = p.getBoolean(KEY_SKIP_PHOTO, d.skipPhotosensitivity),
             skipNarrator = p.getBoolean(KEY_SKIP_NARRATOR, d.skipNarrator),
@@ -61,11 +80,25 @@ object GameSettings {
     fun save(context: Context, s: Settings) {
         prefs(context).edit()
             .putString(KEY_REGION, s.region.name)
+            .putString(KEY_RESOLUTION, s.resolution.name)
             .putBoolean(KEY_SKIP_INTRO, s.skipIntro)
             .putBoolean(KEY_SKIP_PHOTO, s.skipPhotosensitivity)
             .putBoolean(KEY_SKIP_NARRATOR, s.skipNarrator)
             .putBoolean(KEY_CONTROLLER_LIGHTS_OFF, s.controllerLightsOff)
             .apply()
+    }
+
+    /** Render size as "WxH" (landscape) for a display of [displayWidth] x [displayHeight]. */
+    fun screenSize(r: Resolution, default: String, displayWidth: Int, displayHeight: Int): String {
+        r.fixed?.let { return it }
+        val pixels = r.pixels ?: return default
+        val long = maxOf(displayWidth, displayHeight)
+        val short = minOf(displayWidth, displayHeight)
+        if (short <= 0) return default
+        val aspect = long.toDouble() / short
+        val height = kotlin.math.sqrt(pixels / aspect)
+        fun even8(v: Double, cap: Int) = (Math.round(v / 8.0).toInt() * 8).coerceIn(8, maxOf(8, cap - cap % 8))
+        return "${even8(height * aspect, long)}x${even8(height, short)}"
     }
 
     /** CVar -> value for Config.wtf; null removes the line. */
@@ -106,6 +139,7 @@ object GameSettings {
     private const val LOCALE = "enUS"
     private const val PREFS = "game_settings"
     private const val KEY_REGION = "region"
+    private const val KEY_RESOLUTION = "resolution"
     private const val KEY_SKIP_INTRO = "skip_intro"
     private const val KEY_SKIP_PHOTO = "skip_photosensitivity"
     private const val KEY_SKIP_NARRATOR = "skip_narrator"
@@ -123,7 +157,7 @@ fun GameSettingsDialog(
         onDismissRequest = onDismiss,
         title = { Text("Game settings") },
         text = {
-            Column {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text("Applied every time the game starts.")
                 Spacer(Modifier.height(12.dp))
                 Text("Region")
@@ -133,6 +167,17 @@ fun GameSettingsDialog(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         RadioButton(selected = s.region == r, onClick = null)
+                        Text(r.label)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("Resolution (fit screen uses the screen you launch on)")
+                GameSettings.Resolution.entries.forEach { r ->
+                    Row(
+                        Modifier.selectable(selected = s.resolution == r, onClick = { s = s.copy(resolution = r) }),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = s.resolution == r, onClick = null)
                         Text(r.label)
                     }
                 }
