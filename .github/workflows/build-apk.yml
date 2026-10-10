@@ -40,7 +40,9 @@ jobs:
           java-version: "17"
           cache: gradle
 
-      - uses: android-actions/setup-android@v3
+      # The runner image ships the Android SDK; Gradle fetches any missing platform or NDK.
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
       - name: Cache runtime components
         uses: actions/cache@v4
