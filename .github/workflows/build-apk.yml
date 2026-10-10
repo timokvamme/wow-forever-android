@@ -1,0 +1,92 @@
+name: Build APK
+
+# Publishing a GitHub release builds a signed APK and attaches it to that release, where the
+# in-app updater (AppUpdater.kt) finds it. "Run workflow" on the Actions tab builds one as a
+# downloadable artifact without making a release.
+#
+# Required repository secrets (Settings > Secrets and variables > Actions):
+#   KEYSTORE_BASE64    the keystore file, base64 encoded (base64 -w0 my.jks)
+#   KEYSTORE_PASSWORD  store password
+#   KEY_ALIAS          key alias
+#   KEY_PASSWORD       key password
+# The key must be the one the installed app was signed with, or Android refuses the update.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Cache runtime components
+        uses: actions/cache@v4
+        with:
+          path: app/src/main/assets/bundled_components
+          key: components-${{ hashFiles('tools/components.sha256', 'tools/fetch_components.sh') }}
+
+      - name: Fetch Wine, DXVK and Turnip components
+        run: tools/fetch_components.sh
+
+      - name: Set up signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::Signing secrets are missing. Add KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          mkdir -p app/keystores
+          echo "$KEYSTORE_BASE64" | base64 -d > app/keystores/release.jks
+          {
+            echo "storeFile=keystores/release.jks"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > app/keystores/keystore.properties
+
+      - name: Build release APK
+        run: ./gradlew --no-daemon assembleModernRelease
+
+      - name: Name the APK
+        id: apk
+        run: |
+          version=$(grep -m1 'versionName = ' app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
+          out="WoW-Forever-$version.apk"
+          cp app/build/outputs/apk/modern/release/app-modern-release.apk "$out"
+          echo "file=$out" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.file }}
+          path: ${{ steps.apk.outputs.file }}
+
+      - name: Attach APK to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "${{ steps.apk.outputs.file }}" --clobber -R "${{ github.repository }}"
+
+      - name: Remove signing key
+        if: always()
+        run: rm -rf app/keystores
