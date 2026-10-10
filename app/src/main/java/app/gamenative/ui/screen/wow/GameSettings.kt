@@ -43,6 +43,7 @@ object GameSettings {
         val skipIntro: Boolean = true,
         val skipPhotosensitivity: Boolean = true,
         val skipNarrator: Boolean = true,
+        val controllerLightsOff: Boolean = false,
     )
 
     fun load(context: Context): Settings {
@@ -53,6 +54,7 @@ object GameSettings {
             skipIntro = p.getBoolean(KEY_SKIP_INTRO, d.skipIntro),
             skipPhotosensitivity = p.getBoolean(KEY_SKIP_PHOTO, d.skipPhotosensitivity),
             skipNarrator = p.getBoolean(KEY_SKIP_NARRATOR, d.skipNarrator),
+            controllerLightsOff = p.getBoolean(KEY_CONTROLLER_LIGHTS_OFF, d.controllerLightsOff),
         )
     }
 
@@ -62,6 +64,7 @@ object GameSettings {
             .putBoolean(KEY_SKIP_INTRO, s.skipIntro)
             .putBoolean(KEY_SKIP_PHOTO, s.skipPhotosensitivity)
             .putBoolean(KEY_SKIP_NARRATOR, s.skipNarrator)
+            .putBoolean(KEY_CONTROLLER_LIGHTS_OFF, s.controllerLightsOff)
             .apply()
     }
 
@@ -106,6 +109,7 @@ object GameSettings {
     private const val KEY_SKIP_INTRO = "skip_intro"
     private const val KEY_SKIP_PHOTO = "skip_photosensitivity"
     private const val KEY_SKIP_NARRATOR = "skip_narrator"
+    private const val KEY_CONTROLLER_LIGHTS_OFF = "controller_lights_off"
 }
 
 @Composable
@@ -136,6 +140,7 @@ fun GameSettingsDialog(
                 SettingCheck("Skip intro cinematic", s.skipIntro) { s = s.copy(skipIntro = it) }
                 SettingCheck("Skip photosensitivity warning", s.skipPhotosensitivity) { s = s.copy(skipPhotosensitivity = it) }
                 SettingCheck("Skip screen narrator prompt (narrator off)", s.skipNarrator) { s = s.copy(skipNarrator = it) }
+                SettingCheck("Turn off controller lights (Android 12+)", s.controllerLightsOff) { s = s.copy(controllerLightsOff = it) }
             }
         },
         confirmButton = { TextButton(onClick = { onConfirm(s) }) { Text("Save") } },

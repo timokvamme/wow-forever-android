@@ -76,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import app.gamenative.R
+import app.gamenative.ui.screen.wow.GameSettings
 import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.ui.util.applyScreenEffectsConfig
 import app.gamenative.ui.util.loadScreenEffectsConfig
@@ -114,6 +115,7 @@ import app.gamenative.utils.LsfgVkManager
 import app.gamenative.utils.downloader.DXWrapperDownloader
 import app.gamenative.utils.downloader.GraphicsDriverDownloader
 import app.gamenative.utils.BrightnessManager
+import app.gamenative.utils.ControllerLights
 import app.gamenative.utils.downloader.WinComponentDownloader
 import app.gamenative.utils.WineProcessSnapshotHelper
 import com.winlator.alsaserver.ALSAClient
@@ -1406,15 +1408,18 @@ fun XServerScreen(
     DisposableEffect(Unit) {
         val inputManager = context.getSystemService(Context.INPUT_SERVICE) as InputManager
 
+        val lightsOff = GameSettings.load(context).controllerLightsOff
         val deviceListener = object : InputManager.InputDeviceListener {
             override fun onInputDeviceAdded(deviceId: Int) {
                 ControllerManager.getInstance().onDeviceConnected(deviceId)
                 scanForExternalDevices()
                 val device = InputDevice.getDevice(deviceId) ?: return
                 evaluateDevice(device)
+                if (lightsOff) ControllerLights.turnOff(device)
             }
 
             override fun onInputDeviceRemoved(deviceId: Int) {
+                ControllerLights.release(deviceId)
                 physicalControllerHandler?.onInputDeviceRemoved(deviceId)
                 ControllerManager.getInstance().onDeviceDisconnected(deviceId)
                 scanForExternalDevices()
@@ -1425,15 +1430,18 @@ fun XServerScreen(
                 scanForExternalDevices()
                 val device = InputDevice.getDevice(deviceId) ?: return
                 evaluateDevice(device)
+                if (lightsOff) ControllerLights.turnOff(device)
             }
         }
 
         inputManager.registerInputDeviceListener(deviceListener, null)
         ControllerManager.getInstance().resetSessionActivity()
         scanForExternalDevices()
+        if (lightsOff) InputDevice.getDeviceIds().forEach { ControllerLights.turnOff(InputDevice.getDevice(it)) }
 
         onDispose {
             inputManager.unregisterInputDeviceListener(deviceListener)
+            ControllerLights.releaseAll()
         }
     }
 
