@@ -1,5 +1,8 @@
 package app.gamenative.ui.screen.wow
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Environment
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
@@ -106,6 +109,26 @@ fun AddonsDialog(gameRoot: File, onDismiss: () -> Unit) {
                         }
                     },
                 ) { Text(if (hasConsolePort) "Update ConsolePort (controller UI)" else "Add ConsolePort (controller UI)") }
+                val hasControllerForever = installed.any { it.name.equals("ControllerForever", ignoreCase = true) }
+                TextButton(
+                    enabled = busy == null,
+                    onClick = {
+                        run("Getting ControllerForever...") {
+                            val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                            val addon = Addons.installControllerForever(gameRoot, context.cacheDir, downloads) { p ->
+                                busy = "Downloading ControllerForever... ${(p * 100).toInt()}%"
+                            }
+                            if (addon != null) {
+                                "Installed ${addon.title} ${addon.version.orEmpty()}."
+                            } else {
+                                runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Addons.CONTROLLER_FOREVER_PAGE)))
+                                }
+                                "CurseForge needs a browser download. Tap Download on the page that opened, then come back and tap this button again."
+                            }
+                        }
+                    },
+                ) { Text(if (hasControllerForever) "Update ControllerForever (controller extras)" else "Add ControllerForever (controller extras)") }
                 TextButton(
                     enabled = busy == null,
                     onClick = { zipPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")) },

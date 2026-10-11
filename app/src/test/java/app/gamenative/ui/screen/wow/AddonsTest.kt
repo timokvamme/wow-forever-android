@@ -37,4 +37,19 @@ class AddonsTest {
             root.deleteRecursively()
         }
     }
+
+    @Test
+    fun `finds the newest downloaded zip for an addon`() {
+        val dir = Files.createTempDirectory("downloads").toFile()
+        try {
+            dir.resolve("Controller-Forever-1.0.zip").apply { writeText("") }.setLastModified(1_000)
+            dir.resolve("ControllerForever-1.1.zip").apply { writeText("") }.setLastModified(2_000)
+            dir.resolve("ConsolePort-3.3.10.zip").writeText("")
+            dir.resolve("controllerforever-notes.txt").writeText("")
+            assertEquals("ControllerForever-1.1.zip", Addons.findDownloadedZip(dir, "controllerforever")?.name)
+            assertEquals(null, Addons.findDownloadedZip(dir, "easycontroller"))
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
 }

@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import timber.log.Timber
 
 /**
  * Installs and removes WoW addons in <game>/_classic_beta_/Interface/AddOns. An addon zip often
@@ -21,6 +22,10 @@ object Addons {
     private const val MANIFEST = "wowforever-addons.json"
     private const val CONSOLEPORT_RELEASE = "https://api.github.com/repos/seblindfors/ConsolePort/releases/latest"
     const val CONSOLEPORT = "ConsolePort"
+    const val CONTROLLER_FOREVER_PAGE = "https://www.curseforge.com/wow/addons/controllerforever"
+    private const val CONTROLLER_FOREVER_SLUG = "controllerforever"
+    private const val CURSEFORGE_API = "https://www.curseforge.com/api/v1/mods"
+    private const val BROWSER_UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36"
 
     fun addonsDir(gameRoot: File) = File(gameRoot, "${WowClientDownloader.FLAVOR_DIR}/Interface/AddOns")
 
@@ -110,6 +115,83 @@ object Addons {
             zip.delete()
         }
     }
+
+    /**
+     * Installs ControllerForever from CurseForge, or from a ControllerForever zip already in
+     * [downloadsDir]. Returns null when neither works, so the caller can open the CurseForge page
+     * for a browser download; CurseForge may refuse requests that don't come from a browser.
+     */
+    suspend fun installControllerForever(
+        gameRoot: File,
+        workDir: File,
+        downloadsDir: File,
+        onProgress: (Float) -> Unit,
+    ): Installed? = withContext(Dispatchers.IO) {
+        runCatching { installFromCurseForge(CONTROLLER_FOREVER_SLUG, gameRoot, workDir, onProgress) }
+            .onFailure { Timber.w(it, "CurseForge download of %s failed", CONTROLLER_FOREVER_SLUG) }
+            .getOrNull()
+            ?: findDownloadedZip(downloadsDir, CONTROLLER_FOREVER_SLUG)?.let { zip ->
+                Timber.i("Installing %s from %s", CONTROLLER_FOREVER_SLUG, zip)
+                zip.inputStream().use { installZip(gameRoot, it, workDir, zip.nameWithoutExtension.substringAfter('-', "").ifBlank { null }) }
+            }
+    }
+
+    private fun installFromCurseForge(slug: String, gameRoot: File, workDir: File, onProgress: (Float) -> Unit): Installed {
+        val mod = getJson("$CURSEFORGE_API/search?gameId=1&index=0&pageSize=20&filterText=$slug").optJSONArray("data").objects()
+            .firstOrNull { it.optString("slug").equals(slug, ignoreCase = true) }
+            ?: error("$slug not found on CurseForge")
+        val modId = mod.getLong("id")
+        val file = getJson("$CURSEFORGE_API/$modId/files?pageIndex=0&pageSize=20&sort=dateCreated&sortDescending=true")
+            .optJSONArray("data").objects()
+            .firstOrNull { it.optString("fileName").endsWith(".zip", ignoreCase = true) }
+            ?: error("No files for $slug on CurseForge")
+        val zip = File(workDir, "$slug.zip")
+        try {
+            download("$CURSEFORGE_API/$modId/files/${file.getLong("id")}/download", zip, onProgress)
+            val version = file.optString("displayName").ifBlank { file.optString("fileName") }.removeSuffix(".zip")
+            return zip.inputStream().use { installZip(gameRoot, it, workDir, version) }
+        } finally {
+            zip.delete()
+        }
+    }
+
+    /** Newest zip in [dir] whose name, ignoring case and punctuation, contains [slug]. */
+    internal fun findDownloadedZip(dir: File, slug: String): File? =
+        dir.listFiles().orEmpty()
+            .filter { it.isFile && it.extension.equals("zip", ignoreCase = true) }
+            .filter { slug in it.name.lowercase().filter(Char::isLetterOrDigit) }
+            .maxByOrNull { it.lastModified() }
+
+    private fun browserRequest(url: String) = Request.Builder().url(url).header("User-Agent", BROWSER_UA).build()
+
+    private fun getJson(url: String): JSONObject =
+        Net.http.newCall(browserRequest(url)).execute().use { rsp ->
+            check(rsp.isSuccessful) { "CurseForge returned HTTP ${rsp.code}" }
+            JSONObject(rsp.body!!.string())
+        }
+
+    private fun download(url: String, dest: File, onProgress: (Float) -> Unit) {
+        Net.http.newCall(browserRequest(url)).execute().use { rsp ->
+            check(rsp.isSuccessful) { "Download returned HTTP ${rsp.code}" }
+            val body = rsp.body!!
+            val total = body.contentLength()
+            dest.outputStream().use { out ->
+                val input = body.byteStream()
+                val buf = ByteArray(8 * 1024)
+                var read = 0L
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    out.write(buf, 0, n)
+                    read += n
+                    if (total > 0) onProgress(read.toFloat() / total)
+                }
+            }
+        }
+    }
+
+    private fun JSONArray?.objects(): List<JSONObject> =
+        if (this == null) emptyList() else (0 until length()).mapNotNull { optJSONObject(it) }
 
     private fun extract(zip: InputStream, dest: File) {
         val root = dest.canonicalPath + File.separator
