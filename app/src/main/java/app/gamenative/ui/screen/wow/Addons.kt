@@ -22,7 +22,7 @@ object Addons {
     private const val MANIFEST = "wowforever-addons.json"
     private const val CONSOLEPORT_RELEASE = "https://api.github.com/repos/seblindfors/ConsolePort/releases/latest"
     const val CONSOLEPORT = "ConsolePort"
-    const val CONTROLLER_FOREVER_PAGE = "https://www.curseforge.com/wow/addons/controllerforever"
+    const val CONTROLLER_FOREVER_PAGE = "https://www.curseforge.com/wow/addons/controllerforever/download"
     private const val CONTROLLER_FOREVER_SLUG = "controllerforever"
     private const val CURSEFORGE_API = "https://www.curseforge.com/api/v1/mods"
     private const val BROWSER_UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36"
@@ -162,6 +162,32 @@ object Addons {
             .filter { slug in it.name.lowercase().filter(Char::isLetterOrDigit) }
             .maxByOrNull { it.lastModified() }
 
+    /**
+     * Installs a zip that a page in the in-app browser started downloading, sending the browser's
+     * user agent and cookies so sites behind a bot check (CurseForge) serve the file.
+     */
+    suspend fun installFromBrowserDownload(
+        gameRoot: File,
+        workDir: File,
+        url: String,
+        userAgent: String,
+        cookies: String?,
+        fileName: String,
+        onProgress: (Float) -> Unit,
+    ): Installed = withContext(Dispatchers.IO) {
+        val zip = File(workDir, "browser-download.zip")
+        try {
+            val request = Request.Builder().url(url).header("User-Agent", userAgent)
+                .apply { if (!cookies.isNullOrBlank()) header("Cookie", cookies) }
+                .build()
+            download(request, zip, onProgress)
+            val version = fileName.removeSuffix(".zip").substringAfter('-', "").ifBlank { null }
+            zip.inputStream().use { installZip(gameRoot, it, workDir, version) }
+        } finally {
+            zip.delete()
+        }
+    }
+
     private fun browserRequest(url: String) = Request.Builder().url(url).header("User-Agent", BROWSER_UA).build()
 
     private fun getJson(url: String): JSONObject =
@@ -170,8 +196,10 @@ object Addons {
             JSONObject(rsp.body!!.string())
         }
 
-    private fun download(url: String, dest: File, onProgress: (Float) -> Unit) {
-        Net.http.newCall(browserRequest(url)).execute().use { rsp ->
+    private fun download(url: String, dest: File, onProgress: (Float) -> Unit) = download(browserRequest(url), dest, onProgress)
+
+    private fun download(request: Request, dest: File, onProgress: (Float) -> Unit) {
+        Net.http.newCall(request).execute().use { rsp ->
             check(rsp.isSuccessful) { "Download returned HTTP ${rsp.code}" }
             val body = rsp.body!!
             val total = body.contentLength()
