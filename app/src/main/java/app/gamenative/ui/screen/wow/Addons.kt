@@ -51,6 +51,8 @@ object Addons {
         return (packages + loose).sortedBy { it.title.lowercase() }
     }
 
+    fun isInstalled(gameRoot: File, folder: String) = File(addonsDir(gameRoot), folder).isDirectory
+
     fun remove(gameRoot: File, addon: Installed) {
         val dir = addonsDir(gameRoot)
         addon.folders.forEach { File(dir, it).deleteRecursively() }

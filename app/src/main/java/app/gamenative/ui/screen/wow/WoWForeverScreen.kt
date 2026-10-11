@@ -923,7 +923,14 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, onS
     val settings = GameSettings.load(context)
     val screenSize = gameScreenSize(context, settings, gpu)
     try {
-        ensureGameConfig(gameRoot, GameSettings.configOverrides(settings) + ("gxWindowedResolution" to screenSize))
+        // ConsolePort draws its own controller UI; Blizzard's controller interface on top of it doubles the bars.
+        val interfaceStyle = if (Addons.isInstalled(gameRoot, Addons.CONSOLEPORT)) "0" else "1"
+        ensureGameConfig(
+            gameRoot,
+            GameSettings.configOverrides(settings) +
+                ("gxWindowedResolution" to screenSize) +
+                ("InputDeviceInterfaceStyle" to interfaceStyle),
+        )
     } catch (e: Exception) {
         if (e.isPermissionDenied()) throw StorageAccessDeniedException(e)
         throw e
