@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.PlayArrow
@@ -95,6 +96,7 @@ fun WoWForeverScreen(
     var hasSavedLogin by remember { mutableStateOf(BattleNetSignIn.load(context) != null) }
     var showLoginDialog by remember { mutableStateOf(false) }
     var showGameSettings by remember { mutableStateOf(false) }
+    var showAddons by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf(READY_STATUS) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showStoragePermissionDialog by remember { mutableStateOf(false) }
@@ -604,7 +606,10 @@ fun WoWForeverScreen(
                             }
                         }
                     }
-                    LinkButton("Game Settings", Icons.Default.Settings) { showGameSettings = true }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        LinkButton("Game Settings", Icons.Default.Settings) { showGameSettings = true }
+                        LinkButton("Addons", Icons.Default.Extension) { showAddons = true }
+                    }
                 }
             }
 
@@ -621,6 +626,10 @@ fun WoWForeverScreen(
                 hasSavedLogin = true
             },
         )
+    }
+
+    if (showAddons) {
+        AddonsDialog(gameRoot = File(gamePath), onDismiss = { showAddons = false })
     }
 
     if (showGameSettings) {
