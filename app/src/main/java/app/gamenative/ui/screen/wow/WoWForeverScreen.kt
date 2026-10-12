@@ -923,17 +923,7 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, onS
     val settings = GameSettings.load(context)
     val screenSize = gameScreenSize(context, settings, gpu)
     try {
-        // ConsolePort draws its own controller UI; Blizzard's controller interface on top of it doubles the bars.
-        // Without that interface, keep the soft targeting it would have turned on, so NPCs, mobs and loot
-        // stay easy to interact with.
-        val consolePort = Addons.isInstalled(gameRoot, Addons.CONSOLEPORT)
-        ensureGameConfig(
-            gameRoot,
-            GameSettings.configOverrides(settings) +
-                ("gxWindowedResolution" to screenSize) +
-                ("InputDeviceInterfaceStyle" to if (consolePort) "0" else "1") +
-                (if (consolePort) GAMEPAD_SOFT_TARGET_CVARS else emptyMap()),
-        )
+        ensureGameConfig(gameRoot, GameSettings.configOverrides(settings) + ("gxWindowedResolution" to screenSize))
     } catch (e: Exception) {
         if (e.isPermissionDenied()) throw StorageAccessDeniedException(e)
         throw e
@@ -1036,21 +1026,6 @@ private val CONFIG_DEFAULTS = linkedMapOf(
     "groundEffectDensity" to "\"16\"",
     "GamePadEnable" to "\"1\"",
     "InputDeviceInterfaceStyle" to "\"1\"",
-)
-
-/** The soft targeting Blizzard_Gamepad/Core.lua turns on with its controller interface (WoW Forever UI source). */
-private val GAMEPAD_SOFT_TARGET_CVARS = mapOf(
-    "SoftTargetEnemy" to "1",
-    "SoftTargetWithLocked" to "1",
-    "SoftTargetMatchLocked" to "1",
-    "SoftTargetIconInteract" to "1",
-    "SoftTargetInteract" to "1",
-    "SoftTargetInteractRange" to "20",
-    "SoftTargetIconGameObject" to "1",
-    "SoftTargetEnemyArc" to "1",
-    "SoftTargetFriendArc" to "2",
-    "SoftTargetInteractArc" to "1",
-    "CameraKeepCharacterCentered" to "1",
 )
 
 private val FORCED_CONFIG_KEYS = listOf("gxApi", "RenderScale", "ResampleQuality", "GamePadEnable", "InputDeviceInterfaceStyle")

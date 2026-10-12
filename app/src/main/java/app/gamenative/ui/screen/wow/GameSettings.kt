@@ -62,6 +62,7 @@ object GameSettings {
         val skipPhotosensitivity: Boolean = true,
         val skipNarrator: Boolean = true,
         val controllerLightsOff: Boolean = false,
+        val gamepadUi: Boolean = true,
     )
 
     fun load(context: Context): Settings {
@@ -74,6 +75,7 @@ object GameSettings {
             skipPhotosensitivity = p.getBoolean(KEY_SKIP_PHOTO, d.skipPhotosensitivity),
             skipNarrator = p.getBoolean(KEY_SKIP_NARRATOR, d.skipNarrator),
             controllerLightsOff = p.getBoolean(KEY_CONTROLLER_LIGHTS_OFF, d.controllerLightsOff),
+            gamepadUi = p.getBoolean(KEY_GAMEPAD_UI, d.gamepadUi),
         )
     }
 
@@ -85,6 +87,7 @@ object GameSettings {
             .putBoolean(KEY_SKIP_PHOTO, s.skipPhotosensitivity)
             .putBoolean(KEY_SKIP_NARRATOR, s.skipNarrator)
             .putBoolean(KEY_CONTROLLER_LIGHTS_OFF, s.controllerLightsOff)
+            .putBoolean(KEY_GAMEPAD_UI, s.gamepadUi)
             .apply()
     }
 
@@ -108,6 +111,8 @@ object GameSettings {
         put("showPhotosensitivityWarning", if (s.skipPhotosensitivity) "0" else "1")
         put("showScreenNarrationDialog", if (s.skipNarrator) "0" else "1")
         if (s.skipNarrator) put("accessibilityScreenNarrationEnabled", "0")
+        // The in-game "Enable Gamepad UI (Alpha)" option.
+        put("InputDeviceInterfaceStyle", if (s.gamepadUi) "1" else "0")
     }
 
     /** Drops every SET line for an overridden key, then appends the non-null overrides. */
@@ -144,6 +149,7 @@ object GameSettings {
     private const val KEY_SKIP_PHOTO = "skip_photosensitivity"
     private const val KEY_SKIP_NARRATOR = "skip_narrator"
     private const val KEY_CONTROLLER_LIGHTS_OFF = "controller_lights_off"
+    private const val KEY_GAMEPAD_UI = "gamepad_ui"
 }
 
 @Composable
@@ -186,6 +192,7 @@ fun GameSettingsDialog(
                 SettingCheck("Skip photosensitivity warning", s.skipPhotosensitivity) { s = s.copy(skipPhotosensitivity = it) }
                 SettingCheck("Skip screen narrator prompt (narrator off)", s.skipNarrator) { s = s.copy(skipNarrator = it) }
                 SettingCheck("Turn off controller lights (Android 12+)", s.controllerLightsOff) { s = s.copy(controllerLightsOff = it) }
+                SettingCheck("Gamepad UI (Alpha) on at every start", s.gamepadUi) { s = s.copy(gamepadUi = it) }
             }
         },
         confirmButton = { TextButton(onClick = { onConfirm(s) }) { Text("Save") } },
