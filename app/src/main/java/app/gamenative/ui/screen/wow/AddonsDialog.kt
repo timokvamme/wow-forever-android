@@ -1,7 +1,5 @@
 package app.gamenative.ui.screen.wow
 
-import android.content.Intent
-import android.net.Uri
 import android.os.Environment
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -41,6 +39,7 @@ fun AddonsDialog(gameRoot: File, onDismiss: () -> Unit) {
     var busy by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     var confirmRemove by remember { mutableStateOf<Addons.Installed?>(null) }
+    var showControllerForeverPage by remember { mutableStateOf(false) }
 
     suspend fun refresh() {
         installed = withContext(Dispatchers.IO) { Addons.list(gameRoot) }
@@ -121,10 +120,8 @@ fun AddonsDialog(gameRoot: File, onDismiss: () -> Unit) {
                             if (addon != null) {
                                 "Installed ${addon.title} ${addon.version.orEmpty()}."
                             } else {
-                                runCatching {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Addons.CONTROLLER_FOREVER_PAGE)))
-                                }
-                                "CurseForge needs a browser download. Tap Download on the page that opened, then come back and tap this button again."
+                                showControllerForeverPage = true
+                                "Opening CurseForge..."
                             }
                         }
                     },
@@ -145,6 +142,26 @@ fun AddonsDialog(gameRoot: File, onDismiss: () -> Unit) {
         },
         confirmButton = { TextButton(onClick = onDismiss, enabled = busy == null) { Text("Done") } },
     )
+
+    if (showControllerForeverPage) {
+        AddonWebDownloadDialog(
+            title = "ControllerForever",
+            pageUrl = Addons.CONTROLLER_FOREVER_PAGE,
+            onDownload = { download ->
+                showControllerForeverPage = false
+                run("Downloading ControllerForever...") {
+                    val addon = Addons.installFromBrowserDownload(
+                        gameRoot, context.cacheDir, download.url, download.userAgent, download.cookies, download.fileName,
+                    ) { p -> busy = "Downloading ControllerForever... ${(p * 100).toInt()}%" }
+                    "Installed ${addon.title} ${addon.version.orEmpty()}."
+                }
+            },
+            onDismiss = {
+                showControllerForeverPage = false
+                message = null
+            },
+        )
+    }
 
     confirmRemove?.let { addon ->
         AlertDialog(
