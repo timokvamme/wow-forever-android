@@ -16,6 +16,7 @@ class GameSettingsTest {
                 "SET showPhotosensitivityWarning \"0\"",
                 "SET showScreenNarrationDialog \"0\"",
                 "SET accessibilityScreenNarrationEnabled \"0\"",
+                "SET InputDeviceInterfaceStyle \"1\"",
             ),
             once,
         )
@@ -25,5 +26,8 @@ class GameSettingsTest {
         val off = GameSettings.applyOverrides(once, keepIntro)
         assertEquals(false, off.any { it.contains("playIntroMovie") })
         assertEquals(true, off.contains("SET showScreenNarrationDialog \"1\""))
+
+        val noGamepadUi = GameSettings.applyOverrides(once, GameSettings.configOverrides(GameSettings.Settings(gamepadUi = false)))
+        assertEquals(true, noGamepadUi.contains("SET InputDeviceInterfaceStyle \"0\""))
     }
 }
