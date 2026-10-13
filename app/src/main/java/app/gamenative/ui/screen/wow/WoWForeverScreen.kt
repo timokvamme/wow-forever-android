@@ -1028,7 +1028,9 @@ private val CONFIG_DEFAULTS = linkedMapOf(
     "InputDeviceInterfaceStyle" to "\"1\"",
 )
 
-private val FORCED_CONFIG_KEYS = listOf("gxApi", "RenderScale", "ResampleQuality", "GamePadEnable", "InputDeviceInterfaceStyle")
+private const val GAMEPAD_UI_KEY = "InputDeviceInterfaceStyle"
+
+private val FORCED_CONFIG_KEYS = listOf("gxApi", "RenderScale", "ResampleQuality", "GamePadEnable", GAMEPAD_UI_KEY)
 
 private val LEGACY_CONFIG_VALUES = mapOf(
     "farclip" to "\"3000\"",
@@ -1056,6 +1058,9 @@ private fun ensureGameConfig(root: File, overrides: Map<String, String?>) {
         configWtf.writeText(CONFIG_DEFAULTS.entries.joinToString("\n") { "SET ${it.key} ${it.value}" } + "\n")
     }
 
+    // ConsolePort brings its own bars, so the player decides whether Blizzard's gamepad UI shows too.
+    val skipKeys = if (Addons.isInstalled(root, Addons.CONSOLEPORT)) setOf(GAMEPAD_UI_KEY) else emptySet()
+    val forcedKeys = FORCED_CONFIG_KEYS - skipKeys
     val original = configWtf.readLines().filterNot { it.startsWith("SET ResampleSharpness", ignoreCase = true) }
     val existingKeys = mutableSetOf<String>()
     val updated = original.map { line ->
@@ -1063,17 +1068,30 @@ private fun ensureGameConfig(root: File, overrides: Map<String, String?>) {
         if (parts?.size != 2) return@map line
         val (key, value) = parts
         existingKeys.add(key)
-        val forcedKey = FORCED_CONFIG_KEYS.firstOrNull { it.equals(key, ignoreCase = true) }
+        val forcedKey = forcedKeys.firstOrNull { it.equals(key, ignoreCase = true) }
         when {
             forcedKey != null && value != CONFIG_DEFAULTS.getValue(forcedKey) -> "SET $forcedKey ${CONFIG_DEFAULTS.getValue(forcedKey)}"
             LEGACY_CONFIG_VALUES[key] == value -> "SET $key ${CONFIG_DEFAULTS.getValue(key)}"
             else -> line
         }
-    }.plus(CONFIG_DEFAULTS.filterKeys { it !in existingKeys }.map { (k, v) -> "SET $k $v" })
+    }.plus(CONFIG_DEFAULTS.filterKeys { it !in existingKeys && it !in skipKeys }.map { (k, v) -> "SET $k $v" })
         .let { GameSettings.applyOverrides(it, overrides) }
 
     if (updated != original) {
         configWtf.writeText(updated.joinToString("\n") + "\n")
+    }
+
+    // The game saves the gamepad CVars per account in config-cache.wtf and loads them over Config.wtf
+    // at login, so a stale "0" there hides the gamepad UI until it is toggled and the player relogs.
+    val accountForced = listOf("GamePadEnable", GAMEPAD_UI_KEY).filter { it in forcedKeys }
+    File(flavorDir, "WTF/Account").listFiles().orEmpty().forEach { account ->
+        val cache = File(account, "config-cache.wtf").takeIf { it.isFile } ?: return@forEach
+        val lines = cache.readLines()
+        val fixed = lines.map { line ->
+            val key = line.takeIf { it.startsWith("SET ", ignoreCase = true) }?.removeRange(0, 4)?.trim()?.substringBefore(' ')
+            accountForced.firstOrNull { it.equals(key, ignoreCase = true) }?.let { "SET $it ${CONFIG_DEFAULTS.getValue(it)}" } ?: line
+        }
+        if (fixed != lines) cache.writeText(fixed.joinToString("\n") + "\n")
     }
 }
 
