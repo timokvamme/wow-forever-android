@@ -924,6 +924,7 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, onS
     val screenSize = gameScreenSize(context, settings, gpu)
     try {
         ensureGameConfig(gameRoot, GameSettings.configOverrides(settings) + ("gxWindowedResolution" to screenSize), settings.gamepadUi)
+        GamepadBars.apply(gameRoot, settings.hideGamepadBars)
     } catch (e: Exception) {
         if (e.isPermissionDenied()) throw StorageAccessDeniedException(e)
         throw e
