@@ -201,11 +201,9 @@ fun GameSettingsDialog(
                 SettingCheck("Skip photosensitivity warning", s.skipPhotosensitivity) { s = s.copy(skipPhotosensitivity = it) }
                 SettingCheck("Skip screen narrator prompt (narrator off)", s.skipNarrator) { s = s.copy(skipNarrator = it) }
                 SettingCheck("Turn off controller lights (Android 12+)", s.controllerLightsOff) { s = s.copy(controllerLightsOff = it) }
-                SettingCheck("Force Gamepad UI (Alpha) on at every start", s.forceGamepadUiOn) {
-                    s = s.copy(forceGamepadUiOn = it, forceGamepadUiOff = s.forceGamepadUiOff && !it)
-                }
-                SettingCheck("Force Blizzard's gamepad UI off (for ConsolePort)", s.forceGamepadUiOff) {
-                    s = s.copy(forceGamepadUiOff = it, forceGamepadUiOn = s.forceGamepadUiOn && !it)
+                SettingCheck("Force Gamepad UI (Alpha) on at every start", s.forceGamepadUiOn) { s = s.copy(forceGamepadUiOn = it) }
+                SettingCheck("Force Blizzard's gamepad UI off (for ConsolePort; wins if both are ticked)", s.forceGamepadUiOff) {
+                    s = s.copy(forceGamepadUiOff = it)
                 }
             }
         },
