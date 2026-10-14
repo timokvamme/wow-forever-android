@@ -68,6 +68,21 @@ object Addons {
         }
     }
 
+    /**
+     * Deletes the addon's saved variables for every account and character, so it starts with its
+     * defaults. Returns how many files were removed. The game must not be running.
+     */
+    fun resetSettings(gameRoot: File, addon: Installed): Int {
+        val accounts = File(gameRoot, "${WowClientDownloader.FLAVOR_DIR}/WTF/Account")
+        return accounts.walkTopDown().maxDepth(5)
+            .filter { it.isFile && it.parentFile?.name == "SavedVariables" && isSavedVariablesOf(addon, it.name) }
+            .toList()
+            .count { it.delete() }
+    }
+
+    internal fun isSavedVariablesOf(addon: Installed, file: String): Boolean =
+        addon.folders.any { file.equals("$it.lua", ignoreCase = true) || file.equals("$it.lua.bak", ignoreCase = true) }
+
     /** Installs every addon folder found in [zip]; returns the package that was recorded. */
     fun installZip(gameRoot: File, zip: InputStream, workDir: File, version: String? = null): Installed {
         val staging = File(workDir, "addon-staging").apply { deleteRecursively(); mkdirs() }

@@ -1030,7 +1030,9 @@ private val CONFIG_DEFAULTS = linkedMapOf(
 
 private const val GAMEPAD_UI_KEY = "InputDeviceInterfaceStyle"
 
-private val FORCED_CONFIG_KEYS = listOf("gxApi", "RenderScale", "ResampleQuality", "GamePadEnable", GAMEPAD_UI_KEY)
+private val GAMEPAD_KEYS = listOf("GamePadEnable", GAMEPAD_UI_KEY)
+
+private val FORCED_CONFIG_KEYS = listOf("gxApi", "RenderScale", "ResampleQuality") + GAMEPAD_KEYS
 
 private val LEGACY_CONFIG_VALUES = mapOf(
     "farclip" to "\"3000\"",
@@ -1058,9 +1060,14 @@ private fun ensureGameConfig(root: File, overrides: Map<String, String?>) {
         configWtf.writeText(CONFIG_DEFAULTS.entries.joinToString("\n") { "SET ${it.key} ${it.value}" } + "\n")
     }
 
-    // ConsolePort brings its own bars, so the player decides whether Blizzard's gamepad UI shows too.
-    val skipKeys = if (Addons.isInstalled(root, Addons.CONSOLEPORT)) setOf(GAMEPAD_UI_KEY) else emptySet()
-    val forcedKeys = FORCED_CONFIG_KEYS - skipKeys
+    // ConsolePort draws its own bars, so Blizzard's gamepad UI is turned off while it is installed.
+    val forced = FORCED_CONFIG_KEYS.associateWith { CONFIG_DEFAULTS.getValue(it) } +
+        (if (Addons.isInstalled(root, Addons.CONSOLEPORT)) mapOf(GAMEPAD_UI_KEY to "\"0\"") else emptyMap())
+    fun forcedLine(line: String): String? {
+        val key = line.takeIf { it.startsWith("SET ", ignoreCase = true) }?.removeRange(0, 4)?.trim()?.substringBefore(' ')
+        return forced.keys.firstOrNull { it.equals(key, ignoreCase = true) }?.let { "SET $it ${forced.getValue(it)}" }
+    }
+
     val original = configWtf.readLines().filterNot { it.startsWith("SET ResampleSharpness", ignoreCase = true) }
     val existingKeys = mutableSetOf<String>()
     val updated = original.map { line ->
@@ -1068,31 +1075,26 @@ private fun ensureGameConfig(root: File, overrides: Map<String, String?>) {
         if (parts?.size != 2) return@map line
         val (key, value) = parts
         existingKeys.add(key)
-        val forcedKey = forcedKeys.firstOrNull { it.equals(key, ignoreCase = true) }
-        when {
-            forcedKey != null && value != CONFIG_DEFAULTS.getValue(forcedKey) -> "SET $forcedKey ${CONFIG_DEFAULTS.getValue(forcedKey)}"
-            LEGACY_CONFIG_VALUES[key] == value -> "SET $key ${CONFIG_DEFAULTS.getValue(key)}"
-            else -> line
-        }
-    }.plus(CONFIG_DEFAULTS.filterKeys { it !in existingKeys && it !in skipKeys }.map { (k, v) -> "SET $k $v" })
+        forcedLine(line) ?: if (LEGACY_CONFIG_VALUES[key] == value) "SET $key ${CONFIG_DEFAULTS.getValue(key)}" else line
+    }.plus((CONFIG_DEFAULTS + forced).filterKeys { it !in existingKeys }.map { (k, v) -> "SET $k $v" })
         .let { GameSettings.applyOverrides(it, overrides) }
 
     if (updated != original) {
         configWtf.writeText(updated.joinToString("\n") + "\n")
     }
 
-    // The game saves the gamepad CVars per account in config-cache.wtf and loads them over Config.wtf
-    // at login, so a stale "0" there hides the gamepad UI until it is toggled and the player relogs.
-    val accountForced = listOf("GamePadEnable", GAMEPAD_UI_KEY).filter { it in forcedKeys }
-    File(flavorDir, "WTF/Account").listFiles().orEmpty().forEach { account ->
-        val cache = File(account, "config-cache.wtf").takeIf { it.isFile } ?: return@forEach
-        val lines = cache.readLines()
-        val fixed = lines.map { line ->
-            val key = line.takeIf { it.startsWith("SET ", ignoreCase = true) }?.removeRange(0, 4)?.trim()?.substringBefore(' ')
-            accountForced.firstOrNull { it.equals(key, ignoreCase = true) }?.let { "SET $it ${CONFIG_DEFAULTS.getValue(it)}" } ?: line
+    // The game also saves CVars in config-cache.wtf for each account and character and loads them over
+    // Config.wtf at login, so the gamepad values are forced there too.
+    File(flavorDir, "WTF/Account").walkTopDown().maxDepth(4)
+        .filter { it.isFile && it.name.equals("config-cache.wtf", ignoreCase = true) }
+        .forEach { cache ->
+            val lines = cache.readLines()
+            val fixed = lines.map { line ->
+                val key = line.takeIf { it.startsWith("SET ", ignoreCase = true) }?.removeRange(0, 4)?.trim()?.substringBefore(' ')
+                if (GAMEPAD_KEYS.any { it.equals(key, ignoreCase = true) }) forcedLine(line) ?: line else line
+            }
+            if (fixed != lines) cache.writeText(fixed.joinToString("\n") + "\n")
         }
-        if (fixed != lines) cache.writeText(fixed.joinToString("\n") + "\n")
-    }
 }
 
 private fun installBundledComponents(context: Context, onStatus: (String) -> Unit) {

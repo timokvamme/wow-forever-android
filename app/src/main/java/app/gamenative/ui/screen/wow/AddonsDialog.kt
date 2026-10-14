@@ -39,6 +39,7 @@ fun AddonsDialog(gameRoot: File, onDismiss: () -> Unit) {
     var busy by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     var confirmRemove by remember { mutableStateOf<Addons.Installed?>(null) }
+    var confirmReset by remember { mutableStateOf<Addons.Installed?>(null) }
     var showControllerForeverPage by remember { mutableStateOf(false) }
 
     suspend fun refresh() {
@@ -90,6 +91,7 @@ fun AddonsDialog(gameRoot: File, onDismiss: () -> Unit) {
                             Text(addon.title)
                             addon.version?.let { Text("Version $it") }
                         }
+                        TextButton(onClick = { confirmReset = addon }, enabled = busy == null) { Text("Reset") }
                         TextButton(onClick = { confirmRemove = addon }, enabled = busy == null) { Text("Remove") }
                     }
                 }
@@ -160,6 +162,24 @@ fun AddonsDialog(gameRoot: File, onDismiss: () -> Unit) {
                 showControllerForeverPage = false
                 message = null
             },
+        )
+    }
+
+    confirmReset?.let { addon ->
+        AlertDialog(
+            onDismissRequest = { confirmReset = null },
+            title = { Text("Reset ${addon.title}?") },
+            text = { Text("Deletes its saved settings for every character, so it starts fresh the next time the game starts.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmReset = null
+                    run("Resetting ${addon.title}...") {
+                        val count = withContext(Dispatchers.IO) { Addons.resetSettings(gameRoot, addon) }
+                        if (count == 0) "${addon.title} had no saved settings." else "Reset ${addon.title}."
+                    }
+                }) { Text("Reset") }
+            },
+            dismissButton = { TextButton(onClick = { confirmReset = null }) { Text("Cancel") } },
         )
     }
 

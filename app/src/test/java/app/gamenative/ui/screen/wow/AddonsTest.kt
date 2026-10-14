@@ -52,4 +52,13 @@ class AddonsTest {
             dir.deleteRecursively()
         }
     }
+
+    @Test
+    fun `matches saved variables of every addon folder`() {
+        val addon = Addons.Installed("ConsolePort", "ConsolePort", null, listOf("ConsolePort", "ConsolePort_Bar"))
+        assertTrue(Addons.isSavedVariablesOf(addon, "ConsolePort.lua"))
+        assertTrue(Addons.isSavedVariablesOf(addon, "ConsolePort_Bar.lua.bak"))
+        assertFalse(Addons.isSavedVariablesOf(addon, "ConsolePort_Keyboard.lua"))
+        assertFalse(Addons.isSavedVariablesOf(addon, "Blizzard_Console.lua"))
+    }
 }
