@@ -924,7 +924,8 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, onS
     val screenSize = gameScreenSize(context, settings, gpu)
     try {
         ensureGameConfig(gameRoot, GameSettings.configOverrides(settings) + ("gxWindowedResolution" to screenSize), settings.gamepadUi)
-        GamepadBars.apply(gameRoot, settings.hideGamepadBars)
+        // Left behind by 2.2.17's "hide gamepad bars" setting.
+        File(Addons.addonsDir(gameRoot), "WoWForever_HideGamepadBars").deleteRecursively()
     } catch (e: Exception) {
         if (e.isPermissionDenied()) throw StorageAccessDeniedException(e)
         throw e
@@ -1048,8 +1049,8 @@ private val LEGACY_CONFIG_VALUES = mapOf(
     "RAIDcomponentTextureLevel" to "\"1\"",
 )
 
-/** [gamepadUi] is the InputDeviceInterfaceStyle value to force, or null to leave the player's choice alone. */
-private fun ensureGameConfig(root: File, overrides: Map<String, String?>, gamepadUi: String?) {
+/** [gamepadUi] is the InputDeviceInterfaceStyle value to force. */
+private fun ensureGameConfig(root: File, overrides: Map<String, String?>, gamepadUi: String) {
     val flavorDir = File(root, FLAVOR_DIR)
     flavorDir.mkdirs()
     val flavorInfo = File(flavorDir, ".flavor.info")
@@ -1063,7 +1064,7 @@ private fun ensureGameConfig(root: File, overrides: Map<String, String?>, gamepa
     }
 
     val forced = (FORCED_CONFIG_KEYS - GAMEPAD_UI_KEY).associateWith { CONFIG_DEFAULTS.getValue(it) } +
-        (gamepadUi?.let { mapOf(GAMEPAD_UI_KEY to "\"$it\"") } ?: emptyMap())
+        mapOf(GAMEPAD_UI_KEY to "\"$gamepadUi\"")
     fun forcedLine(line: String): String? {
         val key = line.takeIf { it.startsWith("SET ", ignoreCase = true) }?.removeRange(0, 4)?.trim()?.substringBefore(' ')
         return forced.keys.firstOrNull { it.equals(key, ignoreCase = true) }?.let { "SET $it ${forced.getValue(it)}" }

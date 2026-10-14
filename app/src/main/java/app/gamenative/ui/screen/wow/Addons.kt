@@ -51,7 +51,7 @@ object Addons {
             Installed(name, tocTitle(File(dir, name)) ?: name, entry.optString("version").ifBlank { null }, folders)
         }.toList()
         val loose = dir.listFiles().orEmpty()
-            .filter { it.isDirectory && it.name !in managed && !it.name.startsWith("Blizzard_") && it.name != GamepadBars.ADDON && hasToc(it) }
+            .filter { it.isDirectory && it.name !in managed && !it.name.startsWith("Blizzard_") && hasToc(it) }
             .map { Installed(it.name, tocTitle(it) ?: it.name, null, listOf(it.name)) }
         return (packages + loose).sortedBy { it.title.lowercase() }
     }

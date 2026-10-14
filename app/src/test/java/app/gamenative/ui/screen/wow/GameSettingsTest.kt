@@ -28,17 +28,8 @@ class GameSettingsTest {
     }
 
     @Test
-    fun `gamepad UI mode is forced on by default and hiding the bars does not change it`() {
+    fun `gamepad UI is on by default and off when unticked`() {
         assertEquals("1", GameSettings.Settings().gamepadUi)
-        assertEquals("1", GameSettings.Settings(hideGamepadBars = true).gamepadUi)
-        assertEquals(null, GameSettings.Settings(forceGamepadUiOn = false).gamepadUi)
-    }
-
-    @Test
-    fun `interface number comes from the client version`() {
-        assertEquals("16001", GamepadBars.interfaceNumber("1.60.1.70374"))
-        assertEquals("11507", GamepadBars.interfaceNumber("1.15.7"))
-        assertEquals(null, GamepadBars.interfaceNumber("garbage"))
-        assertEquals(null, GamepadBars.interfaceNumber(null))
+        assertEquals("0", GameSettings.Settings(forceGamepadUiOn = false).gamepadUi)
     }
 }

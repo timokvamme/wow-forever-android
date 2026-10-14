@@ -63,10 +63,9 @@ object GameSettings {
         val skipNarrator: Boolean = true,
         val controllerLightsOff: Boolean = false,
         val forceGamepadUiOn: Boolean = true,
-        val hideGamepadBars: Boolean = false,
     ) {
-        /** InputDeviceInterfaceStyle (the in-game "Gamepad UI (Alpha)" option) to force, or null to leave it alone. */
-        val gamepadUi: String? get() = if (forceGamepadUiOn) "1" else null
+        /** InputDeviceInterfaceStyle, the in-game "Gamepad UI (Alpha)" option, written on every start. */
+        val gamepadUi: String get() = if (forceGamepadUiOn) "1" else "0"
     }
 
     fun load(context: Context): Settings {
@@ -80,7 +79,6 @@ object GameSettings {
             skipNarrator = p.getBoolean(KEY_SKIP_NARRATOR, d.skipNarrator),
             controllerLightsOff = p.getBoolean(KEY_CONTROLLER_LIGHTS_OFF, d.controllerLightsOff),
             forceGamepadUiOn = p.getBoolean(KEY_FORCE_GAMEPAD_UI_ON, d.forceGamepadUiOn),
-            hideGamepadBars = p.getBoolean(KEY_HIDE_GAMEPAD_BARS, d.hideGamepadBars),
         )
     }
 
@@ -93,7 +91,6 @@ object GameSettings {
             .putBoolean(KEY_SKIP_NARRATOR, s.skipNarrator)
             .putBoolean(KEY_CONTROLLER_LIGHTS_OFF, s.controllerLightsOff)
             .putBoolean(KEY_FORCE_GAMEPAD_UI_ON, s.forceGamepadUiOn)
-            .putBoolean(KEY_HIDE_GAMEPAD_BARS, s.hideGamepadBars)
             .apply()
     }
 
@@ -154,7 +151,6 @@ object GameSettings {
     private const val KEY_SKIP_NARRATOR = "skip_narrator"
     private const val KEY_CONTROLLER_LIGHTS_OFF = "controller_lights_off"
     private const val KEY_FORCE_GAMEPAD_UI_ON = "force_gamepad_ui_on"
-    private const val KEY_HIDE_GAMEPAD_BARS = "hide_gamepad_bars"
 }
 
 @Composable
@@ -197,8 +193,7 @@ fun GameSettingsDialog(
                 SettingCheck("Skip photosensitivity warning", s.skipPhotosensitivity) { s = s.copy(skipPhotosensitivity = it) }
                 SettingCheck("Skip screen narrator prompt (narrator off)", s.skipNarrator) { s = s.copy(skipNarrator = it) }
                 SettingCheck("Turn off controller lights (Android 12+)", s.controllerLightsOff) { s = s.copy(controllerLightsOff = it) }
-                SettingCheck("Force Gamepad UI (Alpha) mode on at every start", s.forceGamepadUiOn) { s = s.copy(forceGamepadUiOn = it) }
-                SettingCheck("Hide Blizzard's gamepad action bars (keeps gamepad mode)", s.hideGamepadBars) { s = s.copy(hideGamepadBars = it) }
+                SettingCheck("Gamepad UI (Alpha)", s.forceGamepadUiOn) { s = s.copy(forceGamepadUiOn = it) }
             }
         },
         confirmButton = { TextButton(onClick = { onConfirm(s) }) { Text("Save") } },
