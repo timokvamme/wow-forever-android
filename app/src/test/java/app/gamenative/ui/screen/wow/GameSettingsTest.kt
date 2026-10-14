@@ -26,4 +26,11 @@ class GameSettingsTest {
         assertEquals(false, off.any { it.contains("playIntroMovie") })
         assertEquals(true, off.contains("SET showScreenNarrationDialog \"1\""))
     }
+
+    @Test
+    fun `gamepad UI is forced on by default, off wins, neither leaves it alone`() {
+        assertEquals("1", GameSettings.Settings().gamepadUi)
+        assertEquals("0", GameSettings.Settings(forceGamepadUiOff = true).gamepadUi)
+        assertEquals(null, GameSettings.Settings(forceGamepadUiOn = false).gamepadUi)
+    }
 }

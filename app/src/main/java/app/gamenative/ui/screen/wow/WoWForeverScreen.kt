@@ -923,7 +923,7 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, onS
     val settings = GameSettings.load(context)
     val screenSize = gameScreenSize(context, settings, gpu)
     try {
-        ensureGameConfig(gameRoot, GameSettings.configOverrides(settings) + ("gxWindowedResolution" to screenSize))
+        ensureGameConfig(gameRoot, GameSettings.configOverrides(settings) + ("gxWindowedResolution" to screenSize), settings.gamepadUi)
     } catch (e: Exception) {
         if (e.isPermissionDenied()) throw StorageAccessDeniedException(e)
         throw e
@@ -1047,7 +1047,8 @@ private val LEGACY_CONFIG_VALUES = mapOf(
     "RAIDcomponentTextureLevel" to "\"1\"",
 )
 
-private fun ensureGameConfig(root: File, overrides: Map<String, String?>) {
+/** [gamepadUi] is the InputDeviceInterfaceStyle value to force, or null to leave the player's choice alone. */
+private fun ensureGameConfig(root: File, overrides: Map<String, String?>, gamepadUi: String?) {
     val flavorDir = File(root, FLAVOR_DIR)
     flavorDir.mkdirs()
     val flavorInfo = File(flavorDir, ".flavor.info")
@@ -1060,9 +1061,8 @@ private fun ensureGameConfig(root: File, overrides: Map<String, String?>) {
         configWtf.writeText(CONFIG_DEFAULTS.entries.joinToString("\n") { "SET ${it.key} ${it.value}" } + "\n")
     }
 
-    // ConsolePort draws its own bars, so Blizzard's gamepad UI is turned off while it is installed.
-    val forced = FORCED_CONFIG_KEYS.associateWith { CONFIG_DEFAULTS.getValue(it) } +
-        (if (Addons.isInstalled(root, Addons.CONSOLEPORT)) mapOf(GAMEPAD_UI_KEY to "\"0\"") else emptyMap())
+    val forced = (FORCED_CONFIG_KEYS - GAMEPAD_UI_KEY).associateWith { CONFIG_DEFAULTS.getValue(it) } +
+        (gamepadUi?.let { mapOf(GAMEPAD_UI_KEY to "\"$it\"") } ?: emptyMap())
     fun forcedLine(line: String): String? {
         val key = line.takeIf { it.startsWith("SET ", ignoreCase = true) }?.removeRange(0, 4)?.trim()?.substringBefore(' ')
         return forced.keys.firstOrNull { it.equals(key, ignoreCase = true) }?.let { "SET $it ${forced.getValue(it)}" }
@@ -1076,7 +1076,7 @@ private fun ensureGameConfig(root: File, overrides: Map<String, String?>) {
         val (key, value) = parts
         existingKeys.add(key)
         forcedLine(line) ?: if (LEGACY_CONFIG_VALUES[key] == value) "SET $key ${CONFIG_DEFAULTS.getValue(key)}" else line
-    }.plus((CONFIG_DEFAULTS + forced).filterKeys { it !in existingKeys }.map { (k, v) -> "SET $k $v" })
+    }.plus((CONFIG_DEFAULTS - GAMEPAD_UI_KEY + forced).filterKeys { it !in existingKeys }.map { (k, v) -> "SET $k $v" })
         .let { GameSettings.applyOverrides(it, overrides) }
 
     if (updated != original) {

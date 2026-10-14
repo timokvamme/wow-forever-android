@@ -62,7 +62,16 @@ object GameSettings {
         val skipPhotosensitivity: Boolean = true,
         val skipNarrator: Boolean = true,
         val controllerLightsOff: Boolean = false,
-    )
+        val forceGamepadUiOn: Boolean = true,
+        val forceGamepadUiOff: Boolean = false,
+    ) {
+        /** InputDeviceInterfaceStyle (the in-game "Gamepad UI (Alpha)" option) to force, or null to leave it alone. */
+        val gamepadUi: String? get() = when {
+            forceGamepadUiOff -> "0"
+            forceGamepadUiOn -> "1"
+            else -> null
+        }
+    }
 
     fun load(context: Context): Settings {
         val p = prefs(context)
@@ -74,6 +83,8 @@ object GameSettings {
             skipPhotosensitivity = p.getBoolean(KEY_SKIP_PHOTO, d.skipPhotosensitivity),
             skipNarrator = p.getBoolean(KEY_SKIP_NARRATOR, d.skipNarrator),
             controllerLightsOff = p.getBoolean(KEY_CONTROLLER_LIGHTS_OFF, d.controllerLightsOff),
+            forceGamepadUiOn = p.getBoolean(KEY_FORCE_GAMEPAD_UI_ON, d.forceGamepadUiOn),
+            forceGamepadUiOff = p.getBoolean(KEY_FORCE_GAMEPAD_UI_OFF, d.forceGamepadUiOff),
         )
     }
 
@@ -85,6 +96,8 @@ object GameSettings {
             .putBoolean(KEY_SKIP_PHOTO, s.skipPhotosensitivity)
             .putBoolean(KEY_SKIP_NARRATOR, s.skipNarrator)
             .putBoolean(KEY_CONTROLLER_LIGHTS_OFF, s.controllerLightsOff)
+            .putBoolean(KEY_FORCE_GAMEPAD_UI_ON, s.forceGamepadUiOn)
+            .putBoolean(KEY_FORCE_GAMEPAD_UI_OFF, s.forceGamepadUiOff)
             .apply()
     }
 
@@ -144,6 +157,8 @@ object GameSettings {
     private const val KEY_SKIP_PHOTO = "skip_photosensitivity"
     private const val KEY_SKIP_NARRATOR = "skip_narrator"
     private const val KEY_CONTROLLER_LIGHTS_OFF = "controller_lights_off"
+    private const val KEY_FORCE_GAMEPAD_UI_ON = "force_gamepad_ui_on"
+    private const val KEY_FORCE_GAMEPAD_UI_OFF = "force_gamepad_ui_off"
 }
 
 @Composable
@@ -186,6 +201,12 @@ fun GameSettingsDialog(
                 SettingCheck("Skip photosensitivity warning", s.skipPhotosensitivity) { s = s.copy(skipPhotosensitivity = it) }
                 SettingCheck("Skip screen narrator prompt (narrator off)", s.skipNarrator) { s = s.copy(skipNarrator = it) }
                 SettingCheck("Turn off controller lights (Android 12+)", s.controllerLightsOff) { s = s.copy(controllerLightsOff = it) }
+                SettingCheck("Force Gamepad UI (Alpha) on at every start", s.forceGamepadUiOn) {
+                    s = s.copy(forceGamepadUiOn = it, forceGamepadUiOff = s.forceGamepadUiOff && !it)
+                }
+                SettingCheck("Force Blizzard's gamepad UI off (for ConsolePort)", s.forceGamepadUiOff) {
+                    s = s.copy(forceGamepadUiOff = it, forceGamepadUiOn = s.forceGamepadUiOn && !it)
+                }
             }
         },
         confirmButton = { TextButton(onClick = { onConfirm(s) }) { Text("Save") } },
