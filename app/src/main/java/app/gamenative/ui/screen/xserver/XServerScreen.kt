@@ -87,6 +87,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import app.gamenative.InputDiagnostics
 import app.gamenative.PluviaApp
 import app.gamenative.PrefManager
 import app.gamenative.data.GyroSettings
@@ -1487,7 +1488,13 @@ fun XServerScreen(
                 PluviaApp.isOverlayPaused &&
                 !showQuickMenu &&
                 !keepPausedForEditor
-        // logD("onKeyEvent(${it.event.device.sources})\n\tisGamepad: $isGamepad\n\tisKeyboard: $isKeyboard\n\t${it.event}")
+        if (isGamepad && it.event.action == KeyEvent.ACTION_DOWN && it.event.repeatCount == 0) {
+            InputDiagnostics.log(
+                "game key ${KeyEvent.keyCodeToString(it.event.keyCode)} manualWait=$waitingForManualResume " +
+                    "menu=$showQuickMenu editor=$showElementEditor/$keepPausedForEditor editMode=$isEditMode " +
+                    "slot=${ControllerManager.getInstance().getSlotForDevice(it.event.device.id)}",
+            )
+        }
 
         if (waitingForManualResume) {
             when (it.event.keyCode) {

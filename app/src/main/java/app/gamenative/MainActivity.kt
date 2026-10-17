@@ -158,6 +158,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        InputDiagnostics.log("activity onResume multiWindow=$isInMultiWindowMode")
         PluviaApp.isActivityInForeground = true
 
         // Re-apply immersive mode to ensure fullscreen persists
@@ -191,6 +192,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        InputDiagnostics.log("activity onPause multiWindow=$isInMultiWindowMode")
         PluviaApp.isActivityInForeground = false
         if (hasReadyGameLifecycleState("pause")) {
             when {
@@ -228,7 +230,9 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        return if (!eventDispatched) super.dispatchKeyEvent(event) else true
+        val result = if (!eventDispatched) super.dispatchKeyEvent(event) else true
+        InputDiagnostics.key(event, eventDispatched)
+        return result
     }
 
     override fun dispatchGenericMotionEvent(ev: MotionEvent?): Boolean {
@@ -236,7 +240,18 @@ class MainActivity : ComponentActivity() {
             event.any { it }
         } == true
 
+        InputDiagnostics.motion(ev, eventDispatched)
         return if (!eventDispatched) super.dispatchGenericMotionEvent(ev) else true
+    }
+
+    override fun onTopResumedActivityChanged(isTopResumedActivity: Boolean) {
+        super.onTopResumedActivityChanged(isTopResumedActivity)
+        InputDiagnostics.log("activity topResumed=$isTopResumedActivity")
+    }
+
+    override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: Configuration) {
+        super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
+        InputDiagnostics.log("activity multiWindow=$isInMultiWindowMode")
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -286,6 +301,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
+        InputDiagnostics.log("window focus=$hasFocus")
         if (hasFocus && !desiredSystemUiVisible) {
             applyImmersiveMode()
         }

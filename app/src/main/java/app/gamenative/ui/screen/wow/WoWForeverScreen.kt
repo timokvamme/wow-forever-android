@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -610,6 +611,7 @@ fun WoWForeverScreen(
                         LinkButton("Game Settings", Icons.Default.Settings) { showGameSettings = true }
                         LinkButton("Addons", Icons.Default.Extension) { showAddons = true }
                     }
+                    LinkButton("Share Input Log", Icons.Default.Share) { shareInputLog(context) }
                 }
             }
 
@@ -862,6 +864,21 @@ private fun PrimaryButton(text: String, icon: ImageVector, enabled: Boolean, onC
         Spacer(modifier = Modifier.width(10.dp))
         Text(text = text, fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
     }
+}
+
+/** Shares cache/input-debug.log, which records controller input and window focus changes. */
+private fun shareInputLog(context: Context) {
+    val file = app.gamenative.InputDiagnostics.logFile(context)
+    if (!file.isFile) {
+        android.widget.Toast.makeText(context, "No input log yet. Play a bit first.", android.widget.Toast.LENGTH_SHORT).show()
+        return
+    }
+    val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    val send = android.content.Intent(android.content.Intent.ACTION_SEND)
+        .setType("text/plain")
+        .putExtra(android.content.Intent.EXTRA_STREAM, uri)
+        .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    context.startActivity(android.content.Intent.createChooser(send, "Share input log").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
 }
 
 @Composable

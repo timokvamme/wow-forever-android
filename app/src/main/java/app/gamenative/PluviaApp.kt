@@ -43,6 +43,7 @@ class PluviaApp : Application() {
         }
 
         CrashHandler.initialize(this)
+        InputDiagnostics.init(this)
         PrefManager.init(this)
     }
 
