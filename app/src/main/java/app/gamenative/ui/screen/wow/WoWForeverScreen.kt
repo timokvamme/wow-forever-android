@@ -869,10 +869,7 @@ private fun PrimaryButton(text: String, icon: ImageVector, enabled: Boolean, onC
 /** Shares cache/input-debug.log, which records controller input and window focus changes. */
 private fun shareInputLog(context: Context) {
     val file = app.gamenative.InputDiagnostics.logFile(context)
-    if (!file.isFile) {
-        android.widget.Toast.makeText(context, "No input log yet. Play a bit first.", android.widget.Toast.LENGTH_SHORT).show()
-        return
-    }
+    if (!file.isFile) app.gamenative.InputDiagnostics.log("no controller input recorded yet")
     val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     val send = android.content.Intent(android.content.Intent.ACTION_SEND)
         .setType("text/plain")
