@@ -41,6 +41,10 @@
         android:allowAudioPlaybackCapture="true"
         android:appCategory="game"
         tools:targetApi="29">
+        <!-- Lets split screen keep both apps resumed on skins that honor it (MagicOS). -->
+        <meta-data
+            android:name="android.allow_multiple_resumed_activities"
+            android:value="true" />
         <!--
          android:windowSoftInputMode must always be in the activity block.
          IME padding with composables like 'Scaffold' will have terrible resizing consequences, if in the activity tag.

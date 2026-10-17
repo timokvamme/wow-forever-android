@@ -1665,6 +1665,10 @@ fun XServerScreen(
                         PluviaApp.inputControlsView?.setGyroForeground(true)
                         currentXServerView.onResume()
                     }
+                    PluviaApp.isNeverSuspendMode() -> {
+                        // The game keeps running while paused (split screen), so keep drawing it.
+                        Timber.d("Keeping XServerView renderer running: suspend policy=never")
+                    }
                     else -> {
                         Timber.d("Synchronizing XServerView renderer to current paused lifecycle state")
                         PluviaApp.inputControlsView?.setGyroForeground(false)

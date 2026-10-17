@@ -1003,6 +1003,9 @@ private fun containerConfig(gameRoot: File, gpu: GpuProfile): JSONObject {
         put("showFPS", true)
         put("startupSelection", Container.STARTUP_SELECTION_AGGRESSIVE.toInt())
         put("wow64Mode", true)
+        // Keep the game and its audio running when the activity is paused by split screen, the
+        // keyboard, a screen recorder dialog or switching apps; "manual" froze it until Resume.
+        put("suspendPolicy", Container.SUSPEND_POLICY_NEVER)
         put("wincomponents", "direct3d=0,directsound=0,directinput8=0,directinput=0,directmusic=0,directshow=0,directplay=0,vcrun2010=0,wmdecoder=0,opengl=0")
     }
 }
