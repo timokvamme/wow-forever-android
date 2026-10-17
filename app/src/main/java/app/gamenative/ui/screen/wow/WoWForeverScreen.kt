@@ -931,6 +931,14 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, onS
         throw e
     }
 
+    // A failed addon download must not stop the game from starting; the Addons screen can retry.
+    try {
+        val failed = Addons.installDefaults(gameRoot, context.cacheDir, onStatus)
+        if (failed.isNotEmpty()) Timber.w("Default addons not downloaded: %s", failed)
+    } catch (e: Exception) {
+        Timber.w(e, "Installing default addons failed")
+    }
+
     val arm64Exe = File(gameRoot, "$FLAVOR_DIR/$EXE_NAME")
     BattleNetSignIn.load(context)?.let { login ->
         BattleNetSignIn.writeLoginFile(gameRoot, login)

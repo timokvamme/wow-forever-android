@@ -40,7 +40,7 @@ fun AddonsDialog(gameRoot: File, onDismiss: () -> Unit) {
     var message by remember { mutableStateOf<String?>(null) }
     var confirmRemove by remember { mutableStateOf<Addons.Installed?>(null) }
     var confirmReset by remember { mutableStateOf<Addons.Installed?>(null) }
-    var showControllerForeverPage by remember { mutableStateOf(false) }
+    var webPageFor by remember { mutableStateOf<Addons.CatalogAddon?>(null) }
 
     suspend fun refresh() {
         installed = withContext(Dispatchers.IO) { Addons.list(gameRoot) }
@@ -75,6 +75,21 @@ fun AddonsDialog(gameRoot: File, onDismiss: () -> Unit) {
 
     LaunchedEffect(gameRoot) { refresh() }
 
+    fun install(cf: Addons.CatalogAddon) {
+        run("Getting ${cf.title}...") {
+            val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val addon = Addons.installCatalog(cf, gameRoot, context.cacheDir, downloads) { p ->
+                busy = "Downloading ${cf.title}... ${(p * 100).toInt()}%"
+            }
+            if (addon != null) {
+                "Installed ${cf.title} ${addon.version.orEmpty()}."
+            } else {
+                webPageFor = cf
+                "Opening CurseForge..."
+            }
+        }
+    }
+
     AlertDialog(
         onDismissRequest = { if (busy == null) onDismiss() },
         title = { Text("Addons") },
@@ -82,10 +97,46 @@ fun AddonsDialog(gameRoot: File, onDismiss: () -> Unit) {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text("Installed in ${WowClientDownloader.FLAVOR_DIR}/Interface/AddOns. Changes apply the next time the game starts.")
                 Spacer(Modifier.height(12.dp))
-                if (installed.isEmpty()) {
-                    Text("No addons installed.")
+                val byCatalog = installed.groupBy { Addons.catalogIdOf(it) }
+                Addons.CATALOG.forEach { cf ->
+                    val have = byCatalog[cf.id].orEmpty()
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(cf.title)
+                            Text(
+                                cf.description + when {
+                                    have.isEmpty() -> ""
+                                    else -> " · installed" + (have.first().version?.let { " $it" } ?: "")
+                                },
+                            )
+                        }
+                        TextButton(onClick = { install(cf) }, enabled = busy == null) { Text(if (have.isEmpty()) "Add" else "Update") }
+                        if (have.isNotEmpty()) {
+                            TextButton(onClick = { confirmReset = have.first() }, enabled = busy == null) { Text("Reset") }
+                            TextButton(onClick = { confirmRemove = have.first() }, enabled = busy == null) { Text("Remove") }
+                        }
+                    }
                 }
-                installed.forEach { addon ->
+                Spacer(Modifier.height(8.dp))
+                TextButton(
+                    enabled = busy == null && Addons.CATALOG.any { it.installByDefault && byCatalog[it.id] == null },
+                    onClick = {
+                        run("Installing addons...") {
+                            val missing = Addons.CATALOG.filter { it.installByDefault && byCatalog[it.id] == null }
+                            val failed = missing.filter { cf ->
+                                busy = "Installing ${cf.title}..."
+                                runCatching { Addons.installCatalog(cf, gameRoot, context.cacheDir, null) {} }.getOrNull() == null
+                            }
+                            if (failed.isEmpty()) "Installed ${missing.size} addons." else "Couldn't download ${failed.joinToString { it.title }}. Tap Add on each to use the browser."
+                        }
+                    },
+                ) { Text("Add all recommended addons") }
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(8.dp))
+                val others = byCatalog[null].orEmpty()
+                Text(if (others.isEmpty()) "No other addons installed." else "Other installed addons")
+                others.forEach { addon ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(addon.title)
@@ -95,39 +146,6 @@ fun AddonsDialog(gameRoot: File, onDismiss: () -> Unit) {
                         TextButton(onClick = { confirmRemove = addon }, enabled = busy == null) { Text("Remove") }
                     }
                 }
-                Spacer(Modifier.height(8.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(8.dp))
-                val hasConsolePort = installed.any { it.name == Addons.CONSOLEPORT }
-                TextButton(
-                    enabled = busy == null,
-                    onClick = {
-                        run("Downloading ConsolePort...") {
-                            val addon = Addons.installConsolePort(gameRoot, context.cacheDir) { p ->
-                                busy = "Downloading ConsolePort... ${(p * 100).toInt()}%"
-                            }
-                            "Installed ${addon.title} ${addon.version.orEmpty()}."
-                        }
-                    },
-                ) { Text(if (hasConsolePort) "Update ConsolePort (controller UI)" else "Add ConsolePort (controller UI)") }
-                val hasControllerForever = installed.any { it.name.equals("ControllerForever", ignoreCase = true) }
-                TextButton(
-                    enabled = busy == null,
-                    onClick = {
-                        run("Getting ControllerForever...") {
-                            val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                            val addon = Addons.installControllerForever(gameRoot, context.cacheDir, downloads) { p ->
-                                busy = "Downloading ControllerForever... ${(p * 100).toInt()}%"
-                            }
-                            if (addon != null) {
-                                "Installed ${addon.title} ${addon.version.orEmpty()}."
-                            } else {
-                                showControllerForeverPage = true
-                                "Opening CurseForge..."
-                            }
-                        }
-                    },
-                ) { Text(if (hasControllerForever) "Update ControllerForever (controller extras)" else "Add ControllerForever (controller extras)") }
                 TextButton(
                     enabled = busy == null,
                     onClick = { zipPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")) },
@@ -145,21 +163,21 @@ fun AddonsDialog(gameRoot: File, onDismiss: () -> Unit) {
         confirmButton = { TextButton(onClick = onDismiss, enabled = busy == null) { Text("Done") } },
     )
 
-    if (showControllerForeverPage) {
+    webPageFor?.let { cf ->
         AddonWebDownloadDialog(
-            title = "ControllerForever",
-            pageUrl = Addons.CONTROLLER_FOREVER_PAGE,
+            title = cf.title,
+            pageUrl = cf.downloadPage,
             onDownload = { download ->
-                showControllerForeverPage = false
-                run("Downloading ControllerForever...") {
+                webPageFor = null
+                run("Downloading ${cf.title}...") {
                     val addon = Addons.installFromBrowserDownload(
-                        gameRoot, context.cacheDir, download.url, download.userAgent, download.cookies, download.fileName,
-                    ) { p -> busy = "Downloading ControllerForever... ${(p * 100).toInt()}%" }
-                    "Installed ${addon.title} ${addon.version.orEmpty()}."
+                        gameRoot, context.cacheDir, download.url, download.userAgent, download.cookies, download.fileName, cf.id,
+                    ) { p -> busy = "Downloading ${cf.title}... ${(p * 100).toInt()}%" }
+                    "Installed ${cf.title} ${addon.version.orEmpty()}."
                 }
             },
             onDismiss = {
-                showControllerForeverPage = false
+                webPageFor = null
                 message = null
             },
         )

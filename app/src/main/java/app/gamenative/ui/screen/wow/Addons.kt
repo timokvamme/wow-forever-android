@@ -17,13 +17,46 @@ import timber.log.Timber
  * recorded as a package in Interface/wowforever-addons.json and removed as one.
  */
 object Addons {
-    data class Installed(val name: String, val title: String, val version: String?, val folders: List<String>)
+    data class Installed(
+        val name: String,
+        val title: String,
+        val version: String?,
+        val folders: List<String>,
+        val catalogId: String? = null,
+    )
+
+    /** An addon the launcher offers by name. [slug] is its CurseForge page; null means ConsolePort's GitHub releases. */
+    data class CatalogAddon(
+        val id: String,
+        val title: String,
+        val description: String,
+        val slug: String?,
+        val installByDefault: Boolean,
+    ) {
+        val downloadPage get() = "https://www.curseforge.com/wow/addons/$slug/download"
+    }
+
+    val CATALOG = listOf(
+        CatalogAddon("leatrix-plus", "Leatrix Plus", "Quality-of-life tweaks", "leatrix-plus", true),
+        CatalogAddon("decursive", "Decursive", "Dispel helper", "decursive", true),
+        CatalogAddon("moveany", "MoveAny", "Move any UI element", "moveany", true),
+        CatalogAddon("syndicator", "Syndicator", "Item data, needed by Baganator", "syndicator", true),
+        CatalogAddon("baganator", "Baganator", "Bags and bank", "baganator", true),
+        CatalogAddon("whisper-messenger", "Whisper Messenger", "Whisper conversations window", "whisper-messenger", true),
+        CatalogAddon("enhancedquesttracker", "Enhanced Quest Tracker", "Quests grouped by zone", "enhancedquesttracker", true),
+        CatalogAddon("auctioneer-forever", "Auctioneer (Forever)", "Auction house scanning and posting", "auctioneer-forever", true),
+        CatalogAddon(CONSOLEPORT_ID, "ConsolePort", "Controller UI", null, false),
+        CatalogAddon("controllerforever", "ControllerForever", "Controller extras", "controllerforever", false),
+    )
 
     private const val MANIFEST = "wowforever-addons.json"
     private const val CONSOLEPORT_RELEASE = "https://api.github.com/repos/seblindfors/ConsolePort/releases/latest"
     const val CONSOLEPORT = "ConsolePort"
-    const val CONTROLLER_FOREVER_PAGE = "https://www.curseforge.com/wow/addons/controllerforever/download"
-    private const val CONTROLLER_FOREVER_SLUG = "controllerforever"
+    private const val CONSOLEPORT_ID = "consoleport"
+    private const val DEFAULTS_FILE = "wowforever-addon-defaults.txt"
+
+    /** CurseForge's game version type for WoW Forever; its files are preferred over other flavors. */
+    private const val FOREVER_VERSION_TYPE = 67408
     private const val CURSEFORGE_API = "https://www.curseforge.com/api/v1/mods"
     private const val BROWSER_UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36"
 
@@ -48,7 +81,10 @@ object Addons {
             val folders = entry.optJSONArray("folders").toStringList().filter { File(dir, it).isDirectory }
             managed += folders
             if (folders.isEmpty()) return@mapNotNull null
-            Installed(name, tocTitle(File(dir, name)) ?: name, entry.optString("version").ifBlank { null }, folders)
+            Installed(
+                name, tocTitle(File(dir, name)) ?: name, entry.optString("version").ifBlank { null }, folders,
+                entry.optString("catalog").ifBlank { null },
+            )
         }.toList()
         val loose = dir.listFiles().orEmpty()
             .filter { it.isDirectory && it.name !in managed && !it.name.startsWith("Blizzard_") && hasToc(it) }
@@ -84,7 +120,7 @@ object Addons {
         addon.folders.any { file.equals("$it.lua", ignoreCase = true) || file.equals("$it.lua.bak", ignoreCase = true) }
 
     /** Installs every addon folder found in [zip]; returns the package that was recorded. */
-    fun installZip(gameRoot: File, zip: InputStream, workDir: File, version: String? = null): Installed {
+    fun installZip(gameRoot: File, zip: InputStream, workDir: File, version: String? = null, catalogId: String? = null): Installed {
         val staging = File(workDir, "addon-staging").apply { deleteRecursively(); mkdirs() }
         try {
             extract(zip, staging)
@@ -103,16 +139,30 @@ object Addons {
             manifest.optJSONObject(name)?.optJSONArray("folders").toStringList()
                 .filter { it !in folders }
                 .forEach { File(dir, it).deleteRecursively() }
-            manifest.put(name, JSONObject().put("folders", JSONArray(folders)).put("version", version ?: ""))
+            // A catalog addon keeps one package even if a new version's shortest folder name changed.
+            if (catalogId != null) {
+                manifest.keys().asSequence().toList()
+                    .filter { it != name && manifest.optJSONObject(it)?.optString("catalog") == catalogId }
+                    .forEach { old ->
+                        manifest.optJSONObject(old)?.optJSONArray("folders").toStringList()
+                            .filter { it !in folders }
+                            .forEach { File(dir, it).deleteRecursively() }
+                        manifest.remove(old)
+                    }
+            }
+            manifest.put(
+                name,
+                JSONObject().put("folders", JSONArray(folders)).put("version", version ?: "").put("catalog", catalogId ?: ""),
+            )
             writeManifest(gameRoot, manifest)
-            return Installed(name, tocTitle(File(dir, name)) ?: name, version, folders)
+            return Installed(name, tocTitle(File(dir, name)) ?: name, version, folders, catalogId)
         } finally {
             staging.deleteRecursively()
         }
     }
 
     /** Downloads the latest ConsolePort release from its GitHub page and installs it. */
-    suspend fun installConsolePort(gameRoot: File, workDir: File, onProgress: (Float) -> Unit): Installed = withContext(Dispatchers.IO) {
+    private fun installConsolePort(gameRoot: File, workDir: File, onProgress: (Float) -> Unit): Installed {
         val release = Net.http.newCall(Request.Builder().url(CONSOLEPORT_RELEASE).build()).execute().use { rsp ->
             check(rsp.isSuccessful) { "GitHub returned HTTP ${rsp.code}" }
             JSONObject(rsp.body!!.string())
@@ -124,58 +174,111 @@ object Addons {
             ?: error("No ConsolePort zip in the latest release")
         val zip = File(workDir, "consoleport.zip")
         try {
-            Net.fetchFile(url, zip, onProgress)
-            zip.inputStream().use { installZip(gameRoot, it, workDir, release.optString("tag_name")) }
+            download(Request.Builder().url(url).build(), zip, onProgress)
+            return zip.inputStream().use { installZip(gameRoot, it, workDir, release.optString("tag_name"), CONSOLEPORT_ID) }
         } finally {
             zip.delete()
         }
     }
 
+    /** The catalog addon an installed package came from, recorded or recognised by folder name. */
+    fun catalogIdOf(addon: Installed): String? =
+        addon.catalogId ?: CATALOG.firstOrNull { c ->
+            addon.folders.any { f -> f.lowercase().filter(Char::isLetterOrDigit) == c.id.filter(Char::isLetterOrDigit) }
+        }?.id
+
     /**
-     * Installs ControllerForever from CurseForge, or from a ControllerForever zip already in
-     * [downloadsDir]. Returns null when neither works, so the caller can open the CurseForge page
-     * for a browser download; CurseForge may refuse requests that don't come from a browser.
+     * Installs [addon] from its source, or from a matching zip already in [downloadsDir]. Returns
+     * null when neither works, so the caller can open the CurseForge page for a browser download;
+     * CurseForge may refuse requests that don't come from a browser.
      */
-    suspend fun installControllerForever(
+    suspend fun installCatalog(
+        addon: CatalogAddon,
         gameRoot: File,
         workDir: File,
-        downloadsDir: File,
+        downloadsDir: File?,
         onProgress: (Float) -> Unit,
-    ): Installed? = withContext(Dispatchers.IO) {
-        runCatching { installFromCurseForge(CONTROLLER_FOREVER_SLUG, gameRoot, workDir, onProgress) }
-            .onFailure { Timber.w(it, "CurseForge download of %s failed", CONTROLLER_FOREVER_SLUG) }
+    ): Installed? = withContext(Dispatchers.IO) { installCatalogBlocking(addon, gameRoot, workDir, downloadsDir, onProgress) }
+
+    private fun installCatalogBlocking(
+        addon: CatalogAddon,
+        gameRoot: File,
+        workDir: File,
+        downloadsDir: File?,
+        onProgress: (Float) -> Unit,
+    ): Installed? {
+        val slug = addon.slug ?: return installConsolePort(gameRoot, workDir, onProgress)
+        return runCatching { installFromCurseForge(addon, gameRoot, workDir, onProgress) }
+            .onFailure { Timber.w(it, "CurseForge download of %s failed", slug) }
             .getOrNull()
-            ?: findDownloadedZip(downloadsDir, CONTROLLER_FOREVER_SLUG)?.let { zip ->
-                Timber.i("Installing %s from %s", CONTROLLER_FOREVER_SLUG, zip)
-                zip.inputStream().use { installZip(gameRoot, it, workDir, zip.nameWithoutExtension.substringAfter('-', "").ifBlank { null }) }
+            ?: downloadsDir?.let { findDownloadedZip(it, slug) }?.let { zip ->
+                Timber.i("Installing %s from %s", slug, zip)
+                zip.inputStream().use {
+                    installZip(gameRoot, it, workDir, zip.nameWithoutExtension.substringAfter('-', "").ifBlank { null }, addon.id)
+                }
             }
     }
 
-    private fun installFromCurseForge(slug: String, gameRoot: File, workDir: File, onProgress: (Float) -> Unit): Installed {
+    /**
+     * Installs each default catalog addon once per game folder. An addon the player removed later
+     * is not put back. Returns the titles that could not be downloaded.
+     */
+    fun installDefaults(gameRoot: File, workDir: File, onStatus: (String) -> Unit): List<String> {
+        val offeredFile = File(gameRoot, "${WowClientDownloader.FLAVOR_DIR}/Interface/$DEFAULTS_FILE")
+        val offered = runCatching { offeredFile.readLines().map(String::trim).toMutableSet() }.getOrDefault(mutableSetOf())
+        val installedIds = list(gameRoot).mapNotNull(::catalogIdOf).toSet()
+        val failed = mutableListOf<String>()
+        CATALOG.filter { it.installByDefault && it.id !in offered }.forEach { addon ->
+            if (addon.id !in installedIds) {
+                onStatus("Installing ${addon.title}...")
+                if (runCatching { installCatalogBlocking(addon, gameRoot, workDir, null) {} }.getOrNull() == null) {
+                    failed += addon.title
+                }
+            }
+            offered += addon.id
+        }
+        offeredFile.parentFile?.mkdirs()
+        offeredFile.writeText(offered.sorted().joinToString("\n") + "\n")
+        return failed
+    }
+
+    private fun installFromCurseForge(addon: CatalogAddon, gameRoot: File, workDir: File, onProgress: (Float) -> Unit): Installed {
+        val slug = checkNotNull(addon.slug)
         val mod = getJson("$CURSEFORGE_API/search?gameId=1&index=0&pageSize=20&filterText=$slug").optJSONArray("data").objects()
             .firstOrNull { it.optString("slug").equals(slug, ignoreCase = true) }
             ?: error("$slug not found on CurseForge")
         val modId = mod.getLong("id")
-        val file = getJson("$CURSEFORGE_API/$modId/files?pageIndex=0&pageSize=20&sort=dateCreated&sortDescending=true")
+        val zips = getJson("$CURSEFORGE_API/$modId/files?pageIndex=0&pageSize=50&sort=dateCreated&sortDescending=true")
             .optJSONArray("data").objects()
-            .firstOrNull { it.optString("fileName").endsWith(".zip", ignoreCase = true) }
-            ?: error("No files for $slug on CurseForge")
+            .filter { it.optString("fileName").endsWith(".zip", ignoreCase = true) }
+        val file = zips.firstOrNull(::isForeverFile) ?: zips.firstOrNull() ?: error("No files for $slug on CurseForge")
         val zip = File(workDir, "$slug.zip")
         try {
             download("$CURSEFORGE_API/$modId/files/${file.getLong("id")}/download", zip, onProgress)
             val version = file.optString("displayName").ifBlank { file.optString("fileName") }.removeSuffix(".zip")
-            return zip.inputStream().use { installZip(gameRoot, it, workDir, version) }
+            return zip.inputStream().use { installZip(gameRoot, it, workDir, version, addon.id) }
         } finally {
             zip.delete()
         }
     }
 
+    /** A CurseForge file built for WoW Forever (game version 1.60 and later 1.x). */
+    internal fun isForeverFile(file: JSONObject): Boolean {
+        val typeIds = file.optJSONArray("gameVersionTypeIds")
+        if (typeIds != null && (0 until typeIds.length()).any { typeIds.optInt(it) == FOREVER_VERSION_TYPE }) return true
+        if (file.optInt("gameVersionTypeId") == FOREVER_VERSION_TYPE) return true
+        val versions = file.optJSONArray("gameVersions").toStringList()
+        return versions.any { it.startsWith("1.6") }
+    }
+
     /** Newest zip in [dir] whose name, ignoring case and punctuation, contains [slug]. */
-    internal fun findDownloadedZip(dir: File, slug: String): File? =
-        dir.listFiles().orEmpty()
+    internal fun findDownloadedZip(dir: File, slug: String): File? {
+        val key = slug.lowercase().filter(Char::isLetterOrDigit)
+        return dir.listFiles().orEmpty()
             .filter { it.isFile && it.extension.equals("zip", ignoreCase = true) }
-            .filter { slug in it.name.lowercase().filter(Char::isLetterOrDigit) }
+            .filter { key in it.name.lowercase().filter(Char::isLetterOrDigit) }
             .maxByOrNull { it.lastModified() }
+    }
 
     /**
      * Installs a zip that a page in the in-app browser started downloading, sending the browser's
@@ -188,6 +291,7 @@ object Addons {
         userAgent: String,
         cookies: String?,
         fileName: String,
+        catalogId: String?,
         onProgress: (Float) -> Unit,
     ): Installed = withContext(Dispatchers.IO) {
         val zip = File(workDir, "browser-download.zip")
@@ -197,7 +301,7 @@ object Addons {
                 .build()
             download(request, zip, onProgress)
             val version = fileName.removeSuffix(".zip").substringAfter('-', "").ifBlank { null }
-            zip.inputStream().use { installZip(gameRoot, it, workDir, version) }
+            zip.inputStream().use { installZip(gameRoot, it, workDir, version, catalogId) }
         } finally {
             zip.delete()
         }

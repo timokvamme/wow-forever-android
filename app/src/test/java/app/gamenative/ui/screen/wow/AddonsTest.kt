@@ -61,4 +61,19 @@ class AddonsTest {
         assertFalse(Addons.isSavedVariablesOf(addon, "ConsolePort_Keyboard.lua"))
         assertFalse(Addons.isSavedVariablesOf(addon, "Blizzard_Console.lua"))
     }
+
+    @Test
+    fun `recognises catalog addons by recorded id or folder name`() {
+        assertEquals("leatrix-plus", Addons.catalogIdOf(Addons.Installed("Leatrix_Plus", "Leatrix Plus", null, listOf("Leatrix_Plus"))))
+        assertEquals("whisper-messenger", Addons.catalogIdOf(Addons.Installed("WhisperMessenger", "Whisper", null, listOf("WhisperMessenger"))))
+        assertEquals("auctioneer-forever", Addons.catalogIdOf(Addons.Installed("Auc", "Auc", null, listOf("Auc"), "auctioneer-forever")))
+        assertEquals(null, Addons.catalogIdOf(Addons.Installed("GamepadLayoutRecovery", "Gamepad Bar Recovery", null, listOf("GamepadLayoutRecovery"))))
+    }
+
+    @Test
+    fun `prefers files built for WoW Forever`() {
+        assertTrue(Addons.isForeverFile(org.json.JSONObject().put("gameVersions", org.json.JSONArray(listOf("1.60.1")))))
+        assertTrue(Addons.isForeverFile(org.json.JSONObject().put("gameVersionTypeIds", org.json.JSONArray(listOf(67408)))))
+        assertFalse(Addons.isForeverFile(org.json.JSONObject().put("gameVersions", org.json.JSONArray(listOf("12.0.5")))))
+    }
 }
