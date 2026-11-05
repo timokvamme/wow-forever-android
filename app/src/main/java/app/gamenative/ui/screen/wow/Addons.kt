@@ -220,6 +220,21 @@ object Addons {
     }
 
     /**
+     * Copies the addons (and the launcher's record of them) from the beta's _classic_beta_ folder
+     * into the full release's folder, once, when the full release has no AddOns folder yet.
+     */
+    fun carryOverFromBeta(gameRoot: File) {
+        val betaInterface = File(gameRoot, "${WowClientDownloader.LEGACY_FLAVOR_DIR}/Interface")
+        val target = addonsDir(gameRoot)
+        if (target.exists() || !File(betaInterface, "AddOns").isDirectory) return
+        File(betaInterface, "AddOns").copyRecursively(target)
+        listOf(MANIFEST, DEFAULTS_FILE).forEach { name ->
+            File(betaInterface, name).takeIf { it.isFile }?.copyTo(File(target.parentFile, name), overwrite = true)
+        }
+        Timber.i("Carried addons over from the beta folder")
+    }
+
+    /**
      * Installs each default catalog addon once per game folder. An addon the player removed later
      * is not put back. Returns the titles that could not be downloaded.
      */
