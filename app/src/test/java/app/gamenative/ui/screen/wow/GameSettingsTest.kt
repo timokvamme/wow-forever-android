@@ -32,4 +32,16 @@ class GameSettingsTest {
         assertEquals("1", GameSettings.Settings().gamepadUi)
         assertEquals("0", GameSettings.Settings(forceGamepadUiOn = false).gamepadUi)
     }
+
+    @Test
+    fun `marks the chosen game account in accountList`() {
+        val lines = listOf("SET portal \"EU\"", "SET accountList \"!SOULPOWER|TIMOANDREAS|\"")
+        assertEquals(listOf("SOULPOWER", "TIMOANDREAS"), GameSettings.accountsIn(lines))
+
+        val picked = GameSettings.selectAccount(lines, "timoandreas")
+        assertEquals(true, picked.contains("SET accountList \"SOULPOWER|!TIMOANDREAS|\""))
+        assertEquals(picked, GameSettings.selectAccount(picked, "TIMOANDREAS"))
+        assertEquals(lines, GameSettings.selectAccount(lines, ""))
+        assertEquals(true, GameSettings.selectAccount(listOf("SET portal \"EU\""), "SOULPOWER").contains("SET accountList \"!SOULPOWER|\""))
+    }
 }

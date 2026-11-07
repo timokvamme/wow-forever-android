@@ -6,10 +6,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,6 +37,8 @@ object GameSettings {
         val skipNarrator: Boolean = true,
         val controllerLightsOff: Boolean = false,
         val forceGamepadUiOn: Boolean = true,
+        /** Game account (as WoW lists it, e.g. "SOULPOWER") preselected at login; blank leaves WoW's choice. */
+        val gameAccount: String = "",
     ) {
         /** InputDeviceInterfaceStyle, the in-game "Gamepad UI (Alpha)" option, written on every start. */
         val gamepadUi: String get() = if (forceGamepadUiOn) "1" else "0"
@@ -48,6 +53,7 @@ object GameSettings {
             skipNarrator = p.getBoolean(KEY_SKIP_NARRATOR, d.skipNarrator),
             controllerLightsOff = p.getBoolean(KEY_CONTROLLER_LIGHTS_OFF, d.controllerLightsOff),
             forceGamepadUiOn = p.getBoolean(KEY_FORCE_GAMEPAD_UI_ON, d.forceGamepadUiOn),
+            gameAccount = p.getString(KEY_GAME_ACCOUNT, d.gameAccount).orEmpty(),
         )
     }
 
@@ -58,6 +64,7 @@ object GameSettings {
             .putBoolean(KEY_SKIP_NARRATOR, s.skipNarrator)
             .putBoolean(KEY_CONTROLLER_LIGHTS_OFF, s.controllerLightsOff)
             .putBoolean(KEY_FORCE_GAMEPAD_UI_ON, s.forceGamepadUiOn)
+            .putString(KEY_GAME_ACCOUNT, s.gameAccount.trim())
             .apply()
     }
 
@@ -69,6 +76,28 @@ object GameSettings {
         put("showScreenNarrationDialog", if (s.skipNarrator) "0" else "1")
         if (s.skipNarrator) put("accessibilityScreenNarrationEnabled", "0")
     }
+
+    /** Game account names in Config.wtf's accountList ("!SOULPOWER|TIMOANDREAS|"), without the "!" mark. */
+    fun accountsIn(lines: List<String>): List<String> =
+        accountListValue(lines)?.split('|')?.map { it.trim().removePrefix("!") }?.filter { it.isNotEmpty() }.orEmpty()
+
+    /**
+     * Marks [account] with "!" in accountList, which is how WoW remembers the game account to preselect
+     * at login. The account is added to the list if WoW hasn't listed it yet. A blank name changes nothing.
+     */
+    fun selectAccount(lines: List<String>, account: String): List<String> {
+        val wanted = account.trim()
+        if (wanted.isEmpty()) return lines
+        val names = accountsIn(lines).let { known -> if (known.any { it.equals(wanted, ignoreCase = true) }) known else known + wanted }
+        val value = names.joinToString("") { (if (it.equals(wanted, ignoreCase = true)) "!$it" else it) + "|" }
+        return applyOverrides(lines, mapOf(ACCOUNT_LIST to value))
+    }
+
+    private fun accountListValue(lines: List<String>): String? =
+        lines.lastOrNull { it.trim().startsWith("SET $ACCOUNT_LIST ", ignoreCase = true) }
+            ?.trim()?.removeRange(0, 4 + ACCOUNT_LIST.length)?.trim()?.removeSurrounding("\"")
+
+    private const val ACCOUNT_LIST = "accountList"
 
     /** Drops every SET line for an overridden key, then appends the non-null overrides. */
     fun applyOverrides(lines: List<String>, overrides: Map<String, String?>): List<String> {
@@ -86,11 +115,13 @@ object GameSettings {
     private const val KEY_SKIP_NARRATOR = "skip_narrator"
     private const val KEY_CONTROLLER_LIGHTS_OFF = "controller_lights_off"
     private const val KEY_FORCE_GAMEPAD_UI_ON = "force_gamepad_ui_on"
+    private const val KEY_GAME_ACCOUNT = "game_account"
 }
 
 @Composable
 fun GameSettingsDialog(
     initial: GameSettings.Settings,
+    knownAccounts: List<String>,
     onDismiss: () -> Unit,
     onConfirm: (GameSettings.Settings) -> Unit,
 ) {
@@ -107,6 +138,28 @@ fun GameSettingsDialog(
                 SettingCheck("Skip screen narrator prompt (narrator off)", s.skipNarrator) { s = s.copy(skipNarrator = it) }
                 SettingCheck("Turn off controller lights (Android 12+)", s.controllerLightsOff) { s = s.copy(controllerLightsOff = it) }
                 SettingCheck("Gamepad UI (Alpha)", s.forceGamepadUiOn) { s = s.copy(forceGamepadUiOn = it) }
+                Spacer(Modifier.height(12.dp))
+                Text("Game account selected at login")
+                val choices = listOf("") + (knownAccounts + listOfNotNull(s.gameAccount.ifBlank { null }))
+                    .distinctBy { it.uppercase() }
+                choices.forEach { name ->
+                    Row(
+                        Modifier.selectable(selected = s.gameAccount.equals(name, ignoreCase = true), onClick = { s = s.copy(gameAccount = name) }),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = s.gameAccount.equals(name, ignoreCase = true), onClick = null)
+                        Text(name.ifEmpty { "Game's choice" })
+                    }
+                }
+                OutlinedTextField(
+                    value = s.gameAccount,
+                    onValueChange = { s = s.copy(gameAccount = it.uppercase()) },
+                    label = { Text("Account name") },
+                    singleLine = true,
+                )
+                if (knownAccounts.isEmpty()) {
+                    Text("Log in once so the game lists your accounts, or type the name as the game shows it.")
+                }
             }
         },
         confirmButton = { TextButton(onClick = { onConfirm(s) }) { Text("Save") } },

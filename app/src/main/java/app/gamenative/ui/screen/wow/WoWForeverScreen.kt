@@ -694,6 +694,9 @@ fun WoWForeverScreen(
     if (showGameSettings) {
         GameSettingsDialog(
             initial = GameSettings.load(context),
+            knownAccounts = remember(gamePath) {
+                runCatching { GameSettings.accountsIn(File(gamePath, CONFIG_WTF).readLines()) }.getOrDefault(emptyList())
+            },
             onDismiss = { showGameSettings = false },
             onConfirm = {
                 showGameSettings = false
@@ -1190,7 +1193,7 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
     try {
         ensureGameConfig(gameRoot, screenSize, GameRegion.saved(context))
         val settings = GameSettings.load(context)
-        applyLauncherSettings(gameRoot, GameSettings.configOverrides(settings), settings.gamepadUi)
+        applyLauncherSettings(gameRoot, GameSettings.configOverrides(settings), settings.gamepadUi, settings.gameAccount)
         // Left behind by 2.2.17's "hide gamepad bars" setting.
         File(Addons.addonsDir(gameRoot), "WoWForever_HideGamepadBars").deleteRecursively()
     } catch (e: Exception) {
@@ -1344,11 +1347,11 @@ private const val GAMEPAD_UI_KEY = "InputDeviceInterfaceStyle"
  * The game also saves CVars in config-cache.wtf for each account and character and loads them over
  * Config.wtf at login, so the gamepad values are forced there too.
  */
-private fun applyLauncherSettings(root: File, overrides: Map<String, String?>, gamepadUi: String) {
+private fun applyLauncherSettings(root: File, overrides: Map<String, String?>, gamepadUi: String, gameAccount: String) {
     val gamepad = mapOf("GamePadEnable" to "1", GAMEPAD_UI_KEY to gamepadUi)
     val configWtf = File(root, CONFIG_WTF)
     val original = configWtf.readLines()
-    val updated = GameSettings.applyOverrides(original, overrides + gamepad)
+    val updated = GameSettings.applyOverrides(original, overrides + gamepad).let { GameSettings.selectAccount(it, gameAccount) }
     if (updated != original) configWtf.writeText(updated.joinToString("\n") + "\n")
 
     fun keyOf(line: String) = line.takeIf { it.startsWith("SET ", ignoreCase = true) }?.removeRange(0, 4)?.trim()?.substringBefore(' ')
