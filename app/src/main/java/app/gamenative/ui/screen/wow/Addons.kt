@@ -25,13 +25,17 @@ object Addons {
         val catalogId: String? = null,
     )
 
-    /** An addon the launcher offers by name. [slug] is its CurseForge page; null means ConsolePort's GitHub releases. */
+    /**
+     * An addon the launcher offers by name. [slug] is its CurseForge page; null means ConsolePort's
+     * GitHub releases, unless [bundled] names an addon folder that ships inside the launcher.
+     */
     data class CatalogAddon(
         val id: String,
         val title: String,
         val description: String,
         val slug: String?,
         val installByDefault: Boolean,
+        val bundled: String? = null,
     ) {
         val downloadPage get() = "https://www.curseforge.com/wow/addons/$slug/download"
     }
@@ -44,6 +48,10 @@ object Addons {
         CatalogAddon("baganator", "Baganator", "Bags and bank", "baganator", true),
         CatalogAddon("whisper-messenger", "Whisper Messenger", "Whisper conversations window", "whisper-messenger", true),
         CatalogAddon("enhancedquesttracker", "Enhanced Quest Tracker", "Quests grouped by zone", "enhancedquesttracker", true),
+        CatalogAddon(
+            "hidebuffpopup", "Hide Buff Popup", "Hides the gamepad buff popup for Plainsrunning", null, true,
+            bundled = BundledAddons.HIDE_BUFF_POPUP,
+        ),
         CatalogAddon("auctioneer-forever", "Auctioneer (Forever)", "Auction house scanning and posting", "auctioneer-forever", true),
         CatalogAddon(CONSOLEPORT_ID, "ConsolePort", "Controller UI", null, false),
         CatalogAddon("controllerforever", "ControllerForever", "Controller extras", "controllerforever", false),
@@ -207,6 +215,7 @@ object Addons {
         downloadsDir: File?,
         onProgress: (Float) -> Unit,
     ): Installed? {
+        addon.bundled?.let { return installBundled(gameRoot, it, addon.id) }
         val slug = addon.slug ?: return installConsolePort(gameRoot, workDir, onProgress)
         return runCatching { installFromCurseForge(addon, gameRoot, workDir, onProgress) }
             .onFailure { Timber.w(it, "CurseForge download of %s failed", slug) }
@@ -217,6 +226,17 @@ object Addons {
                     installZip(gameRoot, it, workDir, zip.nameWithoutExtension.substringAfter('-', "").ifBlank { null }, addon.id)
                 }
             }
+    }
+
+    private fun installBundled(gameRoot: File, folder: String, catalogId: String): Installed {
+        val dir = File(addonsDir(gameRoot), folder).apply { deleteRecursively(); mkdirs() }
+        BundledAddons.files(folder, BundledAddons.interfaceNumberOf(gameRoot)).forEach { (name, text) ->
+            File(dir, name).writeText(text)
+        }
+        val manifest = readManifest(gameRoot)
+        manifest.put(folder, JSONObject().put("folders", JSONArray(listOf(folder))).put("version", "").put("catalog", catalogId))
+        writeManifest(gameRoot, manifest)
+        return Installed(folder, tocTitle(dir) ?: folder, null, listOf(folder), catalogId)
     }
 
     /**
