@@ -1211,6 +1211,7 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
     // A failed addon download must not stop the game from starting; the Addons screen can retry.
     try {
         Addons.carryOverFromBeta(gameRoot)
+        Addons.refreshBundled(gameRoot)
         val failed = Addons.installDefaults(gameRoot, context.cacheDir, onStatus)
         if (failed.isNotEmpty()) Timber.w("Default addons not downloaded: %s", failed)
     } catch (e: Exception) {

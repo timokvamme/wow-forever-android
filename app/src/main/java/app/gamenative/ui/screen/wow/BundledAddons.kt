@@ -11,6 +11,7 @@ object BundledAddons {
         local HIDE_ALL = false
         local BLOCK = {
           ["Plainsrunning"] = true,
+          ["Lightning Shield"] = true,
           -- ["Cozy Fire"] = true,
         }
 
