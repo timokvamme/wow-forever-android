@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Key
@@ -107,6 +108,7 @@ fun WoWForeverScreen(
     var showLoginDialog by remember { mutableStateOf(false) }
     var showGameSettings by remember { mutableStateOf(false) }
     var showAddons by remember { mutableStateOf(false) }
+    var showMacros by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf(READY_STATUS) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showStoragePermissionDialog by remember { mutableStateOf(false) }
@@ -678,6 +680,7 @@ fun WoWForeverScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         LinkButton("Game Settings", Icons.Default.Settings) { showGameSettings = true }
                         LinkButton("Addons", Icons.Default.Extension, enabled = !files.needsInstall) { showAddons = true }
+                        LinkButton("Macros", Icons.Default.Edit, enabled = !files.needsInstall && !isLaunching) { showMacros = true }
                         LinkButton("Share Input Log", Icons.Default.Share) { shareInputLog(context) }
                     }
                 }
@@ -685,6 +688,10 @@ fun WoWForeverScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+
+    if (showMacros) {
+        MacrosDialog(gameRoot = File(gamePath), onDismiss = { showMacros = false })
     }
 
     if (showAddons) {
