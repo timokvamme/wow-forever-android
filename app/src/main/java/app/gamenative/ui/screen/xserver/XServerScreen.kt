@@ -2087,6 +2087,7 @@ fun XServerScreen(
                                     (window.isApplicationWindow() && !window.name.equals("shell", ignoreCase = true) && !window.className.contains("explorer", ignoreCase = true))
                             if (isGameWindow) {
                                 onWindowMapped?.invoke(context, window)
+                                app.gamenative.ui.screen.wow.LoginAutoConfirm.onGameWindowMapped(getxServer())
                             }
                         }
 

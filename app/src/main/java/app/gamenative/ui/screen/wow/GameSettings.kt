@@ -13,6 +13,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,6 +40,8 @@ object GameSettings {
         val forceGamepadUiOn: Boolean = true,
         /** Game account (as WoW lists it, e.g. "SOULPOWER") preselected at login; blank leaves WoW's choice. */
         val gameAccount: String = "",
+        /** Seconds after the game window opens to press Enter and confirm the account; 0 is off. */
+        val autoConfirmSeconds: Int = 15,
     ) {
         /** InputDeviceInterfaceStyle, the in-game "Gamepad UI (Alpha)" option, written on every start. */
         val gamepadUi: String get() = if (forceGamepadUiOn) "1" else "0"
@@ -54,6 +57,7 @@ object GameSettings {
             controllerLightsOff = p.getBoolean(KEY_CONTROLLER_LIGHTS_OFF, d.controllerLightsOff),
             forceGamepadUiOn = p.getBoolean(KEY_FORCE_GAMEPAD_UI_ON, d.forceGamepadUiOn),
             gameAccount = p.getString(KEY_GAME_ACCOUNT, d.gameAccount).orEmpty(),
+            autoConfirmSeconds = p.getInt(KEY_AUTO_CONFIRM, d.autoConfirmSeconds),
         )
     }
 
@@ -65,6 +69,7 @@ object GameSettings {
             .putBoolean(KEY_CONTROLLER_LIGHTS_OFF, s.controllerLightsOff)
             .putBoolean(KEY_FORCE_GAMEPAD_UI_ON, s.forceGamepadUiOn)
             .putString(KEY_GAME_ACCOUNT, s.gameAccount.trim())
+            .putInt(KEY_AUTO_CONFIRM, s.autoConfirmSeconds)
             .apply()
     }
 
@@ -116,6 +121,7 @@ object GameSettings {
     private const val KEY_CONTROLLER_LIGHTS_OFF = "controller_lights_off"
     private const val KEY_FORCE_GAMEPAD_UI_ON = "force_gamepad_ui_on"
     private const val KEY_GAME_ACCOUNT = "game_account"
+    private const val KEY_AUTO_CONFIRM = "auto_confirm_seconds"
 }
 
 @Composable
@@ -159,6 +165,19 @@ fun GameSettingsDialog(
                 )
                 if (knownAccounts.isEmpty()) {
                     Text("Log in once so the game lists your accounts, or type the name as the game shows it.")
+                }
+                Spacer(Modifier.height(12.dp))
+                SettingCheck("Confirm the account automatically", s.autoConfirmSeconds > 0) {
+                    s = s.copy(autoConfirmSeconds = if (it) 15 else 0)
+                }
+                if (s.autoConfirmSeconds > 0) {
+                    Text("Presses Enter ${s.autoConfirmSeconds} s after the game window opens")
+                    Slider(
+                        value = s.autoConfirmSeconds.toFloat(),
+                        onValueChange = { s = s.copy(autoConfirmSeconds = it.toInt().coerceIn(5, 60)) },
+                        valueRange = 5f..60f,
+                        steps = 54,
+                    )
                 }
             }
         },
