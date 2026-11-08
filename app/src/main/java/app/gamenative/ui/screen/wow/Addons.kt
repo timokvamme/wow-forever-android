@@ -49,7 +49,7 @@ object Addons {
         CatalogAddon("whisper-messenger", "Whisper Messenger", "Whisper conversations window", "whisper-messenger", true),
         CatalogAddon("enhancedquesttracker", "Enhanced Quest Tracker", "Quests grouped by zone", "enhancedquesttracker", true),
         CatalogAddon(
-            "hidebuffpopup", "Hide Buff Popup", "Hides the gamepad buff popup for Plainsrunning and Lightning Shield", null, true,
+            "hidebuffpopup", "Hide Buff Popup", "Hides the gamepad buff popup", null, true,
             bundled = BundledAddons.HIDE_BUFF_POPUP,
         ),
         CatalogAddon("auctioneer-forever", "Auctioneer (Forever)", "Auction house scanning and posting", "auctioneer-forever", true),
@@ -228,9 +228,12 @@ object Addons {
             }
     }
 
-    /** Rewrites installed bundled addons, so changes shipped in a launcher update reach the game. */
+    /**
+     * Rewrites bundled addons the launcher installed, so changes shipped in a launcher update reach
+     * the game. A copy the player made by hand (no catalog id recorded) is left alone.
+     */
     fun refreshBundled(gameRoot: File) {
-        val installed = list(gameRoot).mapNotNull(::catalogIdOf).toSet()
+        val installed = list(gameRoot).mapNotNull { it.catalogId }.toSet()
         CATALOG.filter { it.bundled != null && it.id in installed }.forEach { addon ->
             runCatching { installBundled(gameRoot, addon.bundled!!, addon.id) }
                 .onFailure { Timber.w(it, "Refreshing %s failed", addon.id) }

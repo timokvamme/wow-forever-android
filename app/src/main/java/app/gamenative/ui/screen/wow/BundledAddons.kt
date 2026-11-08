@@ -8,18 +8,27 @@ object BundledAddons {
     const val HIDE_BUFF_POPUP = "HideBuffPopup"
 
     private val HIDE_BUFF_POPUP_LUA = """
-        local HIDE_ALL = false
+        -- Hides every gamepad buff popup. Set HIDE_ALL to false to hide only the buffs listed in BLOCK.
+        local HIDE_ALL = true
         local BLOCK = {
-          ["Plainsrunning"] = true,
-          ["Lightning Shield"] = true,
-          -- ["Cozy Fire"] = true,
+          "Plainsrunning",
+          "Lightning Shield",
         }
+
+        local function isBlocked(text)
+          -- drop color codes and textures, then look for a listed name anywhere in the line
+          text = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", "")
+          for _, name in ipairs(BLOCK) do
+            if text:find(name, 1, true) then return true end
+          end
+          return false
+        end
 
         local function hasBlockedText(frame)
           for _, r in ipairs({ frame:GetRegions() }) do
             if r.GetText then
               local t = r:GetText()
-              if t and BLOCK[t] then return true end
+              if type(t) == "string" and isBlocked(t) then return true end
             end
           end
           for _, child in ipairs({ frame:GetChildren() }) do
