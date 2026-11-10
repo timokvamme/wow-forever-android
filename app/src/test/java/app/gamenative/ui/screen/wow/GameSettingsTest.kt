@@ -44,4 +44,11 @@ class GameSettingsTest {
         assertEquals(lines, GameSettings.selectAccount(lines, ""))
         assertEquals(true, GameSettings.selectAccount(listOf("SET portal \"EU\""), "SOULPOWER").contains("SET accountList \"!SOULPOWER|\""))
     }
+
+    @Test
+    fun `parses the saved list of auto-confirm presses`() {
+        assertEquals(listOf(15, 5, 120), GameSettings.parsePresses("15,5,999"))
+        assertEquals(emptyList<Int>(), GameSettings.parsePresses(""))
+        assertEquals(listOf(1), GameSettings.parsePresses("0, x"))
+    }
 }

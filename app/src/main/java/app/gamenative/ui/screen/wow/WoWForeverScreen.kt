@@ -1201,7 +1201,7 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
         ensureGameConfig(gameRoot, screenSize, GameRegion.saved(context))
         val settings = GameSettings.load(context)
         applyLauncherSettings(gameRoot, GameSettings.configOverrides(settings), settings.gamepadUi, settings.gameAccount)
-        LoginAutoConfirm.arm(settings.autoConfirmSeconds)
+        LoginAutoConfirm.arm(settings.autoConfirmPresses)
         // Left behind by 2.2.17's "hide gamepad bars" setting.
         File(Addons.addonsDir(gameRoot), "WoWForever_HideGamepadBars").deleteRecursively()
     } catch (e: Exception) {
