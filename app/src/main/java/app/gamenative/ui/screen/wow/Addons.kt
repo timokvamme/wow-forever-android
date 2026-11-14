@@ -57,8 +57,12 @@ object Addons {
             bundled = BundledAddons.COMPACT_CHAT,
         ),
         CatalogAddon(
-            "compactquests", "Compact Quests", "Smaller tracker showing the nearest, most active quests", null, true,
+            "compactquests", "Compact Quests", "Smaller quest tracker without the header space", null, true,
             bundled = BundledAddons.COMPACT_QUESTS,
+        ),
+        CatalogAddon(
+            "compactminimap", "Compact Minimap", "Minimap and zone bar into the screen corner", null, true,
+            bundled = BundledAddons.COMPACT_MINIMAP,
         ),
         CatalogAddon(
             "buffreminder", "Buff Reminder", "Icon when Battle Shout or Lightning Shield is missing", null, true,
