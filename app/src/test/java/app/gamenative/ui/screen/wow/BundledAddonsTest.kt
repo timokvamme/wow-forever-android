@@ -36,4 +36,12 @@ class BundledAddonsTest {
             assertTrue(folder, files.getValue("$folder.lua").startsWith("-- Shared by the launcher's addons"))
         }
     }
+
+    @Test
+    fun `no bundled addon file starts with an underscore, which the APK build drops`() {
+        val dir = java.io.File("src/main/resources/bundled_addons")
+        val names = dir.list().orEmpty().toList()
+        assertTrue("found no files in ${dir.absolutePath}", names.isNotEmpty())
+        assertTrue(names.toString(), names.none { it.startsWith("_") })
+    }
 }

@@ -6,7 +6,7 @@ import java.io.File
 object BundledAddons {
     /**
      * A launcher-made addon; its Lua lives in resources/bundled_addons/<folder>.lua, after the shared
-     * _Shared.lua (settings pages, slash commands and the minimap button). Settings are saved in
+     * SharedForeverTweaks.lua (settings pages, slash commands and the minimap button). Settings are saved in
      * <folder>DB.
      */
     private data class Addon(val folder: String, val title: String, val notes: String)
@@ -26,7 +26,8 @@ object BundledAddons {
     /** Files of the bundled addon [folder], keyed by file name, for a client of [interfaceNumber]. */
     fun files(folder: String, interfaceNumber: String?): Map<String, String> {
         val addon = ADDONS.firstOrNull { it.folder == folder } ?: error("No bundled addon $folder")
-        val lua = resource("_Shared") + resource(folder)
+        // Not "_Shared": the Android build drops resource files whose names start with "_".
+        val lua = resource("SharedForeverTweaks") + resource(folder)
         return mapOf(
             "$folder.toc" to buildString {
                 interfaceNumber?.let { append("## Interface: $it\n") }

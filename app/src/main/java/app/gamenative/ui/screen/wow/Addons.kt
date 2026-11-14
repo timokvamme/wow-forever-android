@@ -253,10 +253,10 @@ object Addons {
     }
 
     private fun installBundled(gameRoot: File, folder: String, catalogId: String): Installed {
+        // Read the files before touching the folder, so a failure leaves the installed copy alone.
+        val files = BundledAddons.files(folder, BundledAddons.interfaceNumberOf(gameRoot))
         val dir = File(addonsDir(gameRoot), folder).apply { deleteRecursively(); mkdirs() }
-        BundledAddons.files(folder, BundledAddons.interfaceNumberOf(gameRoot)).forEach { (name, text) ->
-            File(dir, name).writeText(text)
-        }
+        files.forEach { (name, text) -> File(dir, name).writeText(text) }
         val manifest = readManifest(gameRoot)
         manifest.put(folder, JSONObject().put("folders", JSONArray(listOf(folder))).put("version", "").put("catalog", catalogId))
         writeManifest(gameRoot, manifest)
