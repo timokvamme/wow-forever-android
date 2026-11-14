@@ -32,6 +32,8 @@ class BundledAddonsTest {
             val files = BundledAddons.files(folder, "16001")
             assertTrue(folder, files.getValue("$folder.lua").length > 100)
             assertTrue(folder, files.getValue("$folder.toc").contains("$folder.lua"))
+            assertTrue(folder, files.getValue("$folder.toc").contains("## SavedVariables: ${folder}DB"))
+            assertTrue(folder, files.getValue("$folder.lua").startsWith("-- Shared by the launcher's addons"))
         }
     }
 }

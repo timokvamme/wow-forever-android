@@ -4,7 +4,11 @@ import java.io.File
 
 /** Small addons that ship inside the launcher instead of being downloaded. */
 object BundledAddons {
-    /** A launcher-made addon; its Lua lives in resources/bundled_addons/<folder>.lua. */
+    /**
+     * A launcher-made addon; its Lua lives in resources/bundled_addons/<folder>.lua, after the shared
+     * _Shared.lua (settings pages, slash commands and the minimap button). Settings are saved in
+     * <folder>DB.
+     */
     private data class Addon(val folder: String, val title: String, val notes: String)
 
     const val HIDE_BUFF_POPUP = "HideBuffPopup"
@@ -22,19 +26,23 @@ object BundledAddons {
     /** Files of the bundled addon [folder], keyed by file name, for a client of [interfaceNumber]. */
     fun files(folder: String, interfaceNumber: String?): Map<String, String> {
         val addon = ADDONS.firstOrNull { it.folder == folder } ?: error("No bundled addon $folder")
-        val lua = BundledAddons::class.java.getResourceAsStream("/bundled_addons/$folder.lua")
-            ?.use { it.readBytes().decodeToString() }
-            ?: error("Missing bundled_addons/$folder.lua")
+        val lua = resource("_Shared") + resource(folder)
         return mapOf(
             "$folder.toc" to buildString {
                 interfaceNumber?.let { append("## Interface: $it\n") }
                 append("## Title: ${addon.title}\n")
                 append("## Notes: ${addon.notes}\n")
+                append("## SavedVariables: ${folder}DB\n")
                 append("\n$folder.lua\n")
             },
             "$folder.lua" to lua,
         )
     }
+
+    private fun resource(name: String): String =
+        BundledAddons::class.java.getResourceAsStream("/bundled_addons/$name.lua")
+            ?.use { it.readBytes().decodeToString() }
+            ?: error("Missing bundled_addons/$name.lua")
 
     /** "1.60.1.70374" -> "16001", the ## Interface number the client expects. */
     internal fun interfaceNumber(version: String?): String? {

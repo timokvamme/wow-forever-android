@@ -14,11 +14,18 @@ local SHORT_TAGS = {
   ["Instance Leader"] = "IL",
 }
 
--- Color player names by class in every kind of chat.
-local CLASS_COLORS = true
+local addonName = ...
+local db
 
--- Let the chat window go all the way into the screen corners.
-local NO_EDGE_GAP = true
+-- Options shown in Options > AddOns > Compact Chat (and /fchat).
+local OPTIONS = {
+  { key = "shortTags", label = "Short channel tags ([1], [P])", default = true },
+  { key = "shortLines", label = "Short loot, skill, XP and rep lines", default = true },
+  { key = "shortNotices", label = "Short channel join lines (Joined [5])", default = true },
+  { key = "shortSpeech", label = "Drop 'says' from chat (Bob: hi)", default = true },
+  { key = "classColors", label = "Color names by class", default = true },
+  { key = "noEdgeGap", label = "Allow chat into the screen corners", default = true },
+}
 
 -- System lines rewritten into short ones. Each entry is the game's own text (by its global name,
 -- so it works in any language) and the short version, where %1, %2 are the parts that vary.
@@ -95,31 +102,33 @@ local function shortTag(link, name, close)
 end
 
 local function shorten(text)
-  for _, rule in ipairs(notices) do
+  if db.shortNotices then for _, rule in ipairs(notices) do
     if text:sub(1, #rule.prefix) == rule.prefix then
       text = rule.out .. text:sub(#rule.prefix + 1)
       break
     end
+  end end
+
+  if db.shortTags then
+    text = text:gsub("(|Hchannel:[^|]*|h)%[([^%]]*)%](|h)", shortTag)
   end
 
-  text = text:gsub("(|Hchannel:[^|]*|h)%[([^%]]*)%](|h)", shortTag)
-
-  for _, rule in ipairs(rewrites) do
+  if db.shortLines then for _, rule in ipairs(rewrites) do
     local first, last, a, b = text:find(rule.pattern)
     if first then
       local out = rule.out:gsub("%%1", function() return a or "" end):gsub("%%2", function() return b or "" end)
       text = text:sub(1, first - 1) .. out .. text:sub(last + 1)
       break
     end
-  end
+  end end
 
-  for _, rule in ipairs(SPEECH) do
+  if db.shortSpeech then for _, rule in ipairs(SPEECH) do
     local first, last = text:find(rule[1], 1, true)
     if first then
       text = text:sub(1, first - 1) .. rule[2] .. text:sub(last + 1)
       break
     end
-  end
+  end end
   return text
 end
 
@@ -129,7 +138,7 @@ local function hookFrame(frame)
   local original = frame.AddMessage
   frame.AddMessage = function(self, text, ...)
     -- Some messages are hidden from addons (secret values); those pass through untouched.
-    if (not canaccessvalue or canaccessvalue(text)) and type(text) == "string" then
+    if db and (not canaccessvalue or canaccessvalue(text)) and type(text) == "string" then
       local ok, short = pcall(shorten, text)
       if ok and short then text = short end
     end
@@ -138,10 +147,11 @@ local function hookFrame(frame)
 end
 
 local function setupFrames()
+  if not db then return end
   for i = 1, (NUM_CHAT_WINDOWS or 10) do
     local frame = _G["ChatFrame" .. i]
     hookFrame(frame)
-    if NO_EDGE_GAP and frame and frame.SetClampRectInsets then
+    if db.noEdgeGap and frame and frame.SetClampRectInsets then
       frame:SetClampRectInsets(0, 0, 0, 0)
     end
   end
@@ -150,15 +160,29 @@ local function setupFrames()
   end
 end
 
+local function applyClassColors()
+  if db.classColors then pcall(SetCVar, "chatClassColorOverride", "0") end
+end
+
 local events = CreateFrame("Frame")
-events:RegisterEvent("PLAYER_LOGIN")
+events:RegisterEvent("ADDON_LOADED")
 events:RegisterEvent("PLAYER_ENTERING_WORLD")
-events:SetScript("OnEvent", function()
+events:SetScript("OnEvent", function(_, event, name)
+  if event == "ADDON_LOADED" then
+    if name ~= addonName then return end
+    CompactChatDB = CompactChatDB or {}
+    db = CompactChatDB
+    ForeverTweaks.buildSettings("Compact Chat", "/fchat", db, OPTIONS, function(key)
+      if key == "classColors" then
+        pcall(SetCVar, "chatClassColorOverride", db.classColors and "0" or "")
+      end
+      setupFrames()
+    end)
+  end
   setupFrames()
-  if CLASS_COLORS then pcall(SetCVar, "chatClassColorOverride", "0") end
+  applyClassColors()
 end)
 
 -- Whisper windows and new chat tabs are created later.
 if FCF_OpenTemporaryWindow then hooksecurefunc("FCF_OpenTemporaryWindow", setupFrames) end
 if FCF_OpenNewWindow then hooksecurefunc("FCF_OpenNewWindow", setupFrames) end
-setupFrames()

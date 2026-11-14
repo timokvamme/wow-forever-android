@@ -1,17 +1,22 @@
 -- CompactQuests: a smaller quest tracker that tracks the quests that matter right now.
 -- Edit these to tweak.
 
-local SCALE = 0.8            -- size of the whole tracker (1 = Blizzard's size)
-local MAX_QUESTS = 4         -- how many quests the tracker shows
-local HIDE_HEADERS = true    -- hide the "All Objectives" and "Quests" header text and art
-local COMPACT_SPACING = true -- tighter spacing between lines and quests
-local AUTO_TRACK = true      -- pick and order the tracked quests automatically (see below)
+local addonName = ...
+local db
 
--- How quests are picked when AUTO_TRACK is on, best first:
+-- Options shown in Options > AddOns > Compact Quests (and /fquests).
+-- How quests are picked when auto tracking is on, best first:
 --   1. a quest that made progress in the last few minutes (the mobs you are killing)
 --   2. the quest whose objective or turn-in is closest to you
--- Quests on another continent go last. Manual tracking is replaced while AUTO_TRACK is on.
-local RECENT_SECONDS = 300
+-- Quests on another continent go last. Manual tracking is replaced while it is on.
+local OPTIONS = {
+  { key = "scale", label = "Tracker size (%)", default = 80, min = 40, max = 150, step = 5 },
+  { key = "maxQuests", label = "Quests shown", default = 4, min = 1, max = 15 },
+  { key = "autoTrack", label = "Track nearest and most active quests", default = true },
+  { key = "recentMinutes", label = "Keep quests with progress on top (minutes)", default = 5, min = 0, max = 30 },
+  { key = "hideHeaders", label = "Hide the tracker headers", default = true },
+  { key = "compactSpacing", label = "Tighter spacing", default = true },
+}
 
 ---------------------------------------------------------------------------------------------------
 
@@ -25,7 +30,7 @@ local function questScore(questID)
     score = onContinent and distanceSq or (1e13 + distanceSq)
   end
   local progressed = lastProgress[questID]
-  if progressed and GetTime() - progressed < RECENT_SECONDS then
+  if progressed and GetTime() - progressed < db.recentMinutes * 60 then
     -- most recent progress first, ahead of everything else
     score = -1e9 + (GetTime() - progressed)
   end
@@ -55,14 +60,14 @@ end
 
 local function retrack()
   pending = false
-  if not AUTO_TRACK then return end
+  if not db or not db.autoTrack then return end
   if InCombatLockdown() then
     pending = true
     return
   end
   local wanted = {}
   for i, quest in ipairs(candidateQuests()) do
-    if i > MAX_QUESTS then break end
+    if i > db.maxQuests then break end
     table.insert(wanted, quest.id)
   end
   local current = currentWatches()
@@ -88,41 +93,54 @@ local function scheduleRetrack(delay)
   end)
 end
 
-local function hideHeader(header)
+local function hideHeader(header, hide)
   if not header then return end
-  if header.Text then header.Text:SetAlpha(0) end
-  if header.Background then header.Background:SetAlpha(0) end
+  local alpha = hide and 0 or 1
+  if header.Text then header.Text:SetAlpha(alpha) end
+  if header.Background then header.Background:SetAlpha(alpha) end
 end
+
+local defaultSpacing = {}
 
 local function styleTracker()
   local tracker = _G.ObjectiveTrackerFrame
-  if not tracker then return end
-  tracker:SetScale(SCALE)
-  if HIDE_HEADERS then
-    hideHeader(tracker.Header)
-    for _, name in ipairs({ "QuestObjectiveTracker", "CampaignQuestObjectiveTracker", "AchievementObjectiveTracker",
-        "BonusObjectiveTracker", "WorldQuestObjectiveTracker", "ProfessionsRecipeTracker" }) do
-      local module = _G[name]
-      if module then hideHeader(module.Header) end
-    end
+  if not tracker or not db then return end
+  if InCombatLockdown() then
+    pending = true
+    return
   end
-  if COMPACT_SPACING then
-    for _, name in ipairs({ "QuestObjectiveTracker", "CampaignQuestObjectiveTracker" }) do
-      local module = _G[name]
-      if module then
-        module.headerHeight = HIDE_HEADERS and 2 or 18
-        module.fromHeaderOffsetY = HIDE_HEADERS and 0 or -4
+  tracker:SetScale(db.scale / 100)
+  hideHeader(tracker.Header, db.hideHeaders)
+  for _, name in ipairs({ "QuestObjectiveTracker", "CampaignQuestObjectiveTracker", "AchievementObjectiveTracker",
+      "BonusObjectiveTracker", "WorldQuestObjectiveTracker", "ProfessionsRecipeTracker" }) do
+    local module = _G[name]
+    if module then hideHeader(module.Header, db.hideHeaders) end
+  end
+  for _, name in ipairs({ "QuestObjectiveTracker", "CampaignQuestObjectiveTracker" }) do
+    local module = _G[name]
+    if module then
+      local saved = defaultSpacing[name]
+      if not saved then
+        saved = { module.headerHeight, module.fromHeaderOffsetY, module.lineSpacing, module.blockOffsetX }
+        defaultSpacing[name] = saved
+      end
+      if db.compactSpacing then
+        module.headerHeight = db.hideHeaders and 2 or 18
+        module.fromHeaderOffsetY = db.hideHeaders and 0 or -4
         module.lineSpacing = 1
         module.blockOffsetX = 8
+      else
+        module.headerHeight, module.fromHeaderOffsetY, module.lineSpacing, module.blockOffsetX = saved[1], saved[2], saved[3], saved[4]
       end
     end
-    if ObjectiveTrackerManager and ObjectiveTrackerManager.UpdateAll and not InCombatLockdown() then
-      pcall(ObjectiveTrackerManager.UpdateAll, ObjectiveTrackerManager)
-    end
+  end
+  if ObjectiveTrackerManager and ObjectiveTrackerManager.UpdateAll then
+    pcall(ObjectiveTrackerManager.UpdateAll, ObjectiveTrackerManager)
   end
 end
 
 local events = CreateFrame("Frame")
+events:RegisterEvent("ADDON_LOADED")
 events:RegisterEvent("PLAYER_ENTERING_WORLD")
 events:RegisterEvent("ZONE_CHANGED")
 events:RegisterEvent("ZONE_CHANGED_NEW_AREA")
@@ -132,7 +150,17 @@ events:RegisterEvent("QUEST_REMOVED")
 events:RegisterEvent("QUEST_WATCH_UPDATE")
 events:RegisterEvent("PLAYER_REGEN_ENABLED")
 events:SetScript("OnEvent", function(_, event, questID)
-  if event == "PLAYER_ENTERING_WORLD" then
+  if event == "ADDON_LOADED" then
+    if questID ~= addonName then return end
+    CompactQuestsDB = CompactQuestsDB or {}
+    db = CompactQuestsDB
+    ForeverTweaks.buildSettings("Compact Quests", "/fquests", db, OPTIONS, function()
+      styleTracker()
+      scheduleRetrack(0.2)
+    end)
+  elseif not db then
+    return
+  elseif event == "PLAYER_ENTERING_WORLD" then
     styleTracker()
     C_Timer.After(2, styleTracker)
     scheduleRetrack(2)
@@ -140,7 +168,10 @@ events:SetScript("OnEvent", function(_, event, questID)
     if questID then lastProgress[questID] = GetTime() end
     scheduleRetrack(0.5)
   elseif event == "PLAYER_REGEN_ENABLED" then
-    if pending then scheduleRetrack(0.5) end
+    if pending then
+      styleTracker()
+      scheduleRetrack(0.5)
+    end
   else
     scheduleRetrack(1)
   end

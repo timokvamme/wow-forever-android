@@ -1,5 +1,10 @@
--- Hides every gamepad buff popup. Set HIDE_ALL to false to hide only the buffs listed in BLOCK.
-local HIDE_ALL = true
+-- Hides the gamepad buff popup. With "Hide all buff popups" off in its options (/fpopup), only
+-- the buffs listed in BLOCK are hidden.
+local addonName = ...
+local db
+local OPTIONS = {
+  { key = "hideAll", label = "Hide all buff popups", default = true },
+}
 local BLOCK = {
   "Plainsrunning",
   "Lightning Shield",
@@ -28,7 +33,7 @@ local function hasBlockedText(frame)
 end
 
 local function check(tt)
-  if HIDE_ALL or hasBlockedText(tt) then tt:Hide() end
+  if (not db or db.hideAll) or hasBlockedText(tt) then tt:Hide() end
 end
 
 local function hook()
@@ -43,6 +48,15 @@ local function hook()
 end
 
 local f = CreateFrame("Frame")
+f:RegisterEvent("ADDON_LOADED")
 f:RegisterEvent("PLAYER_LOGIN")
-f:SetScript("OnEvent", hook)
+f:SetScript("OnEvent", function(_, event, name)
+  if event == "ADDON_LOADED" then
+    if name ~= addonName then return end
+    HideBuffPopupDB = HideBuffPopupDB or {}
+    db = HideBuffPopupDB
+    ForeverTweaks.buildSettings("Hide Buff Popup", "/fpopup", db, OPTIONS)
+  end
+  hook()
+end)
 hook()
