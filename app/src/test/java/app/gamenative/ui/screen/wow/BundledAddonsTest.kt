@@ -25,4 +25,13 @@ class BundledAddonsTest {
     fun `installed folder is recognised as the catalog addon`() {
         assertEquals("hidebuffpopup", Addons.catalogIdOf(Addons.Installed("HideBuffPopup", "Hide Buff Popup", null, listOf("HideBuffPopup"))))
     }
+
+    @Test
+    fun `every bundled addon in the catalog has its lua`() {
+        Addons.CATALOG.mapNotNull { it.bundled }.forEach { folder ->
+            val files = BundledAddons.files(folder, "16001")
+            assertTrue(folder, files.getValue("$folder.lua").length > 100)
+            assertTrue(folder, files.getValue("$folder.toc").contains("$folder.lua"))
+        }
+    }
 }

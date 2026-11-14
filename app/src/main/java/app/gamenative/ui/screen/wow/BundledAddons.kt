@@ -4,72 +4,36 @@ import java.io.File
 
 /** Small addons that ship inside the launcher instead of being downloaded. */
 object BundledAddons {
-    /** Hides the gamepad buff popup (BuffFrameTooltip) for the listed buffs, or for all with HIDE_ALL. */
+    /** A launcher-made addon; its Lua lives in resources/bundled_addons/<folder>.lua. */
+    private data class Addon(val folder: String, val title: String, val notes: String)
+
     const val HIDE_BUFF_POPUP = "HideBuffPopup"
+    const val COMPACT_CHAT = "CompactChat"
+    const val COMPACT_QUESTS = "CompactQuests"
+    const val BUFF_REMINDER = "BuffReminder"
 
-    private val HIDE_BUFF_POPUP_LUA = """
-        -- Hides every gamepad buff popup. Set HIDE_ALL to false to hide only the buffs listed in BLOCK.
-        local HIDE_ALL = true
-        local BLOCK = {
-          "Plainsrunning",
-          "Lightning Shield",
-        }
-
-        local function isBlocked(text)
-          -- drop color codes and textures, then look for a listed name anywhere in the line
-          text = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", "")
-          for _, name in ipairs(BLOCK) do
-            if text:find(name, 1, true) then return true end
-          end
-          return false
-        end
-
-        local function hasBlockedText(frame)
-          for _, r in ipairs({ frame:GetRegions() }) do
-            if r.GetText then
-              local t = r:GetText()
-              if type(t) == "string" and isBlocked(t) then return true end
-            end
-          end
-          for _, child in ipairs({ frame:GetChildren() }) do
-            if hasBlockedText(child) then return true end
-          end
-          return false
-        end
-
-        local function check(tt)
-          if HIDE_ALL or hasBlockedText(tt) then tt:Hide() end
-        end
-
-        local function hook()
-          local tt = _G.BuffFrameTooltip
-          if not tt or tt.__hbpHooked then return end
-          tt.__hbpHooked = true
-          tt:HookScript("OnShow", function(self)
-            check(self)
-            -- the text is sometimes filled in a frame later
-            C_Timer.After(0, function() if self:IsShown() then check(self) end end)
-          end)
-        end
-
-        local f = CreateFrame("Frame")
-        f:RegisterEvent("PLAYER_LOGIN")
-        f:SetScript("OnEvent", hook)
-        hook()
-    """.trimIndent() + "\n"
+    private val ADDONS = listOf(
+        Addon(HIDE_BUFF_POPUP, "Hide Buff Popup", "Hides the gamepad buff popup (BuffFrameTooltip)"),
+        Addon(COMPACT_CHAT, "Compact Chat", "Short channel tags, short system lines, class colors, chat into the corners"),
+        Addon(COMPACT_QUESTS, "Compact Quests", "Smaller quest tracker that tracks the nearest and most active quests"),
+        Addon(BUFF_REMINDER, "Buff Reminder", "Shows an icon above your character when Battle Shout or Lightning Shield is missing"),
+    )
 
     /** Files of the bundled addon [folder], keyed by file name, for a client of [interfaceNumber]. */
-    fun files(folder: String, interfaceNumber: String?): Map<String, String> = when (folder) {
-        HIDE_BUFF_POPUP -> mapOf(
+    fun files(folder: String, interfaceNumber: String?): Map<String, String> {
+        val addon = ADDONS.firstOrNull { it.folder == folder } ?: error("No bundled addon $folder")
+        val lua = BundledAddons::class.java.getResourceAsStream("/bundled_addons/$folder.lua")
+            ?.use { it.readBytes().decodeToString() }
+            ?: error("Missing bundled_addons/$folder.lua")
+        return mapOf(
             "$folder.toc" to buildString {
                 interfaceNumber?.let { append("## Interface: $it\n") }
-                append("## Title: Hide Buff Popup\n")
-                append("## Notes: Hides the gamepad buff popup (BuffFrameTooltip)\n")
+                append("## Title: ${addon.title}\n")
+                append("## Notes: ${addon.notes}\n")
                 append("\n$folder.lua\n")
             },
-            "$folder.lua" to HIDE_BUFF_POPUP_LUA,
+            "$folder.lua" to lua,
         )
-        else -> error("No bundled addon $folder")
     }
 
     /** "1.60.1.70374" -> "16001", the ## Interface number the client expects. */

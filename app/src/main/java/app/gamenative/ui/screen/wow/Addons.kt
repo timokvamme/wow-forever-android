@@ -52,6 +52,18 @@ object Addons {
             "hidebuffpopup", "Hide Buff Popup", "Hides the gamepad buff popup", null, true,
             bundled = BundledAddons.HIDE_BUFF_POPUP,
         ),
+        CatalogAddon(
+            "compactchat", "Compact Chat", "Short channel tags and system lines, class colors", null, true,
+            bundled = BundledAddons.COMPACT_CHAT,
+        ),
+        CatalogAddon(
+            "compactquests", "Compact Quests", "Smaller tracker showing the nearest, most active quests", null, true,
+            bundled = BundledAddons.COMPACT_QUESTS,
+        ),
+        CatalogAddon(
+            "buffreminder", "Buff Reminder", "Icon when Battle Shout or Lightning Shield is missing", null, true,
+            bundled = BundledAddons.BUFF_REMINDER,
+        ),
         CatalogAddon("auctioneer-forever", "Auctioneer (Forever)", "Auction house scanning and posting", "auctioneer-forever", true),
         CatalogAddon(CONSOLEPORT_ID, "ConsolePort", "Controller UI", null, false),
         CatalogAddon("controllerforever", "ControllerForever", "Controller extras", "controllerforever", false),
