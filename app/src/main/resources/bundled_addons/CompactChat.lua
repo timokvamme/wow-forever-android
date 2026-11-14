@@ -25,6 +25,7 @@ local OPTIONS = {
   { key = "shortSpeech", label = "Drop 'says' from chat (Bob: hi)", default = true },
   { key = "classColors", label = "Color names by class", default = true },
   { key = "noEdgeGap", label = "Allow chat into the screen corners", default = true },
+  { key = "editBoxOnTop", label = "Typing box above the chat (frees the bottom edge)", default = true },
 }
 
 -- System lines rewritten into short ones. Each entry is the game's own text (by its global name,
@@ -146,17 +147,45 @@ local function hookFrame(frame)
   end
 end
 
+-- Edit Mode keeps the whole yellow box (tabs, typing box, background padding) on screen, so the
+-- text itself can't reach the edge. Clamp only the text area instead.
+local function unclamp(frame)
+  if db and db.noEdgeGap and frame and frame.SetClampRectInsets then
+    frame:SetClampRectInsets(0, 0, 0, 0)
+  end
+end
+
+-- The typing box normally hangs below the chat; above it, the chat can sit on the bottom edge.
+local function placeEditBox(frame)
+  local editBox = frame and frame.GetName and _G[frame:GetName() .. "EditBox"]
+  if not editBox or not db then return end
+  if db.editBoxOnTop then
+    editBox:ClearAllPoints()
+    editBox:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", -5, 26)
+    editBox:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", 5, 26)
+  end
+end
+
+local function setupFrame(frame)
+  if not frame then return end
+  hookFrame(frame)
+  unclamp(frame)
+  placeEditBox(frame)
+  if not frame.compactChatLayoutHooked then
+    frame.compactChatLayoutHooked = true
+    if frame.UpdateClampOffsets then hooksecurefunc(frame, "UpdateClampOffsets", unclamp) end
+    local editBox = frame.GetName and _G[frame:GetName() .. "EditBox"]
+    if editBox then editBox:HookScript("OnShow", function() placeEditBox(frame) end) end
+  end
+end
+
 local function setupFrames()
   if not db then return end
   for i = 1, (NUM_CHAT_WINDOWS or 10) do
-    local frame = _G["ChatFrame" .. i]
-    hookFrame(frame)
-    if db.noEdgeGap and frame and frame.SetClampRectInsets then
-      frame:SetClampRectInsets(0, 0, 0, 0)
-    end
+    setupFrame(_G["ChatFrame" .. i])
   end
   if CHAT_FRAMES then
-    for _, name in ipairs(CHAT_FRAMES) do hookFrame(_G[name]) end
+    for _, name in ipairs(CHAT_FRAMES) do setupFrame(_G[name]) end
   end
 end
 
@@ -186,3 +215,7 @@ end)
 -- Whisper windows and new chat tabs are created later.
 if FCF_OpenTemporaryWindow then hooksecurefunc("FCF_OpenTemporaryWindow", setupFrames) end
 if FCF_OpenNewWindow then hooksecurefunc("FCF_OpenNewWindow", setupFrames) end
+if EditModeManagerFrame then
+  EditModeManagerFrame:HookScript("OnShow", function() C_Timer.After(0, setupFrames) end)
+  EditModeManagerFrame:HookScript("OnHide", function() C_Timer.After(0.2, setupFrames) end)
+end
