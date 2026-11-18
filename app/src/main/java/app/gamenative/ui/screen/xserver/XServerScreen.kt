@@ -1,5 +1,7 @@
 package app.gamenative.ui.screen.xserver
 
+import app.gamenative.ui.screen.wow.auth.BattleNetBrowserLogin
+
 import android.app.Activity
 import android.content.Context
 import android.graphics.Color
@@ -3682,9 +3684,15 @@ private fun setupXEnvironment(
         val wow64Mode = container.isWoW64Mode
         guestProgramLauncherComponent.setContainer(container)
         guestProgramLauncherComponent.setWineInfo(xServerState.value.wineInfo)
-        val gameExecutable = "wine explorer /desktop=shell," + xServer.screenInfo + " " +
-            getWineStartCommand(context, appId, container, envVars, guestProgramLauncherComponent) +
+        val directCommand = getWineStartCommand(context, appId, container, envVars, guestProgramLauncherComponent) +
             (if (container.execArgs.isNotEmpty()) " " + container.execArgs else "")
+        val browserLogin = if (BattleNetBrowserLogin.enabled(context)) {
+            BattleNetBrowserLogin.start(context, container)
+        } else {
+            null
+        }
+        val launchCommand = browserLogin?.command ?: directCommand
+        val gameExecutable = "wine explorer /desktop=shell," + xServer.screenInfo + " " + launchCommand
         guestProgramLauncherComponent.guestExecutable = gameExecutable
         guestProgramLauncherComponent.isWoW64Mode = wow64Mode
         // Set steam type for selecting appropriate box64rc
@@ -3807,6 +3815,8 @@ private fun setupXEnvironment(
     guestProgramLauncherComponent.envVars = EnvVars().apply { putAll(envVars) }
 
     val gameTerminationCallback = Callback<Int> { status ->
+        // Record the status for this launch before error handling or screen cleanup cancels sign-in.
+        browserLogin?.onExit?.invoke(status)
         if (status != 0) {
             Timber.e("Guest program terminated with status: $status")
             onGameLaunchError?.invoke("Game terminated with error status: $status")
@@ -3846,6 +3856,7 @@ private fun setupXEnvironment(
     try {
         environment.startEnvironmentComponents()
     } catch (e: Exception) {
+        BattleNetBrowserLogin.cancel()
         Timber.e(e, "Failed to start environment components, cleaning up")
         try {
             environment.stopEnvironmentComponents()
