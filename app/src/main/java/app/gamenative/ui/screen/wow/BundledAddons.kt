@@ -16,12 +16,14 @@ object BundledAddons {
     const val COMPACT_QUESTS = "CompactQuests"
     const val BUFF_REMINDER = "BuffReminder"
     const val COMPACT_MINIMAP = "CompactMinimap"
+    const val RESTED_XP = "RestedXP"
 
     private val ADDONS = listOf(
         Addon(HIDE_BUFF_POPUP, "Hide Buff Popup", "Hides the gamepad buff popup (BuffFrameTooltip)"),
         Addon(COMPACT_CHAT, "Compact Chat", "Short channel tags, short system lines, class colors, chat into the corners"),
         Addon(COMPACT_QUESTS, "Compact Quests", "Blizzard's quest tracker, smaller and without the header space"),
         Addon(COMPACT_MINIMAP, "Compact Minimap", "Lets the minimap and zone bar go right into a screen corner"),
+        Addon(RESTED_XP, "Rested XP", "A small movable label with your stored rested XP in percent"),
         Addon(BUFF_REMINDER, "Buff Reminder", "Shows an icon above your character when Battle Shout or Lightning Shield is missing"),
     )
 

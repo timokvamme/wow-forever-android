@@ -65,6 +65,10 @@ object Addons {
             bundled = BundledAddons.COMPACT_MINIMAP,
         ),
         CatalogAddon(
+            "restedxp", "Rested XP", "Small movable label with your rested XP in percent", null, true,
+            bundled = BundledAddons.RESTED_XP,
+        ),
+        CatalogAddon(
             "buffreminder", "Buff Reminder", "Icon when Battle Shout or Lightning Shield is missing", null, true,
             bundled = BundledAddons.BUFF_REMINDER,
         ),
