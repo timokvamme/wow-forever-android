@@ -45,6 +45,8 @@ object GameSettings {
          * counts from the window opening, the rest from the press before). Empty is off.
          */
         val autoConfirmPresses: List<Int> = listOf(15),
+        /** Stick deadzone in percent; stops a worn stick from slowly turning the camera. */
+        val stickDeadzone: Int = 10,
     ) {
         /** InputDeviceInterfaceStyle, the in-game "Gamepad UI (Alpha)" option, written on every start. */
         val gamepadUi: String get() = if (forceGamepadUiOn) "1" else "0"
@@ -64,6 +66,7 @@ object GameSettings {
                 // 2.4.0 stored a single delay
                 ?: p.getInt(KEY_AUTO_CONFIRM, -1).takeIf { it >= 0 }?.let { if (it > 0) listOf(it) else emptyList() }
                 ?: d.autoConfirmPresses,
+            stickDeadzone = p.getInt(KEY_STICK_DEADZONE, d.stickDeadzone).coerceIn(0, MAX_STICK_DEADZONE),
         )
     }
 
@@ -76,6 +79,7 @@ object GameSettings {
             .putBoolean(KEY_FORCE_GAMEPAD_UI_ON, s.forceGamepadUiOn)
             .putString(KEY_GAME_ACCOUNT, s.gameAccount.trim())
             .putString(KEY_AUTO_CONFIRM_PRESSES, s.autoConfirmPresses.joinToString(","))
+            .putInt(KEY_STICK_DEADZONE, s.stickDeadzone)
             .apply()
     }
 
@@ -129,7 +133,9 @@ object GameSettings {
     private const val KEY_GAME_ACCOUNT = "game_account"
     private const val KEY_AUTO_CONFIRM = "auto_confirm_seconds"
     private const val KEY_AUTO_CONFIRM_PRESSES = "auto_confirm_presses"
+    private const val KEY_STICK_DEADZONE = "stick_deadzone"
     const val MAX_PRESS_DELAY = 120
+    const val MAX_STICK_DEADZONE = 40
 
     internal fun parsePresses(text: String): List<Int> =
         text.split(',').mapNotNull { it.trim().toIntOrNull()?.coerceIn(1, MAX_PRESS_DELAY) }
@@ -155,6 +161,15 @@ fun GameSettingsDialog(
                 SettingCheck("Skip screen narrator prompt (narrator off)", s.skipNarrator) { s = s.copy(skipNarrator = it) }
                 SettingCheck("Turn off controller lights (Android 12+)", s.controllerLightsOff) { s = s.copy(controllerLightsOff = it) }
                 SettingCheck("Gamepad UI (Alpha)", s.forceGamepadUiOn) { s = s.copy(forceGamepadUiOn = it) }
+                Spacer(Modifier.height(12.dp))
+                Text("Stick deadzone: ${s.stickDeadzone}%")
+                Text("Raise it if the camera or character moves on its own.")
+                Slider(
+                    value = s.stickDeadzone.toFloat(),
+                    onValueChange = { s = s.copy(stickDeadzone = it.toInt()) },
+                    valueRange = 0f..GameSettings.MAX_STICK_DEADZONE.toFloat(),
+                    steps = GameSettings.MAX_STICK_DEADZONE - 1,
+                )
                 Spacer(Modifier.height(12.dp))
                 Text("Game account selected at login")
                 val choices = listOf("") + (knownAccounts + listOfNotNull(s.gameAccount.ifBlank { null }))

@@ -23,6 +23,11 @@ import java.util.ArrayList;
 
 public class ExternalController {
     public static final float STICK_DEAD_ZONE = 0.15f;
+    /**
+     * Radial deadzone for the analog sticks as sent to the game, 0 to 0.5. Sony pads report no
+     * deadzone of their own on Android, so a slightly worn stick keeps turning the camera.
+     */
+    public static volatile float gameStickDeadzone = 0.10f;
     public static final byte IDX_BUTTON_A = 0;
     public static final byte IDX_BUTTON_B = 1;
     public static final byte IDX_BUTTON_X = 2;
@@ -184,6 +189,12 @@ public class ExternalController {
         this.state.thumbLY = updateAxis(event, MotionEvent.AXIS_Y, historyPos, this.state.thumbLY);
         this.state.thumbRX = updateAxis(event, MotionEvent.AXIS_Z, historyPos, this.state.thumbRX);
         this.state.thumbRY = updateAxis(event, MotionEvent.AXIS_RZ, historyPos, this.state.thumbRY);
+        float[] left = applyStickDeadzone(this.state.thumbLX, this.state.thumbLY, gameStickDeadzone);
+        this.state.thumbLX = left[0];
+        this.state.thumbLY = left[1];
+        float[] right = applyStickDeadzone(this.state.thumbRX, this.state.thumbRY, gameStickDeadzone);
+        this.state.thumbRX = right[0];
+        this.state.thumbRY = right[1];
         if (historyPos == -1 && !JoyConSupport.isJoyCon(event.getDevice())) {
             float axisX = getCenteredAxis(event, MotionEvent.AXIS_HAT_X, historyPos);
             float axisY = getCenteredAxis(event, MotionEvent.AXIS_HAT_Y, historyPos);
@@ -200,6 +211,15 @@ public class ExternalController {
             }
             zArr[3] = z;
         }
+    }
+
+    /** Zero inside [deadzone] of the center, rescaled outside it so the full range stays reachable. */
+    static float[] applyStickDeadzone(float x, float y, float deadzone) {
+        if (deadzone <= 0f) return new float[] { x, y };
+        float magnitude = (float) Math.sqrt(x * x + y * y);
+        if (magnitude <= deadzone) return new float[] { 0f, 0f };
+        float scale = Math.min(1f, (magnitude - deadzone) / (1f - deadzone)) / magnitude;
+        return new float[] { x * scale, y * scale };
     }
 
     private static float updateAxis(MotionEvent event, int axis, int historyPos, float retained) {

@@ -1247,6 +1247,7 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
         val settings = GameSettings.load(context)
         applyLauncherSettings(gameRoot, GameSettings.configOverrides(settings), settings.gamepadUi, settings.gameAccount)
         LoginAutoConfirm.arm(settings.autoConfirmPresses)
+        com.winlator.inputcontrols.ExternalController.gameStickDeadzone = settings.stickDeadzone / 100f
         // Left behind by 2.2.17's "hide gamepad bars" setting.
         File(Addons.addonsDir(gameRoot), "WoWForever_HideGamepadBars").deleteRecursively()
     } catch (e: Exception) {
