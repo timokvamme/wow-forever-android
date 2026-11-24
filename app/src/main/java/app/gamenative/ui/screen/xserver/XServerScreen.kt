@@ -2358,7 +2358,9 @@ fun XServerScreen(
                 // Configure InputControlsView
                 setXServer(xServerView.getxServer())
                 setTouchpadView(PluviaApp.touchpadView)
-                setGyroSettings(GyroSettings.fromContainer(container))
+                setGyroSettings(GyroSettings.fromContainer(container).also {
+                    InputDiagnostics.log("session start: gyro mode=${it.mode} (0 = off), sensitivity=${it.sensitivity}")
+                })
                 setGyroOverlaySuppressed(gyroOverlaySuppressed)
 
                 // Load profile for this container

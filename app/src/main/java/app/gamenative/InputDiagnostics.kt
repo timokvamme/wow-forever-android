@@ -4,6 +4,7 @@ import android.content.Context
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
+import com.winlator.inputcontrols.ExternalController
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -61,6 +62,20 @@ object InputDiagnostics {
         val now = System.currentTimeMillis()
         if (now - (lastMotionLog[e.deviceId] ?: 0L) < 1000) return
         lastMotionLog[e.deviceId] = now
-        log("motion dev=${e.deviceId}:${e.device?.name} handled=$handled")
+        val lx = e.getAxisValue(MotionEvent.AXIS_X)
+        val ly = e.getAxisValue(MotionEvent.AXIS_Y)
+        val rx = e.getAxisValue(MotionEvent.AXIS_Z)
+        val ry = e.getAxisValue(MotionEvent.AXIS_RZ)
+        val dz = ExternalController.gameStickDeadzone
+        val left = ExternalController.applyStickDeadzone(lx, ly, dz)
+        val right = ExternalController.applyStickDeadzone(rx, ry, dz)
+        log(
+            "motion dev=${e.deviceId}:${e.device?.name} handled=$handled " +
+                "raw L=${f(lx)},${f(ly)} R=${f(rx)},${f(ry)} " +
+                "sent L=${f(left[0])},${f(left[1])} R=${f(right[0])},${f(right[1])} deadzone=${f(dz)}",
+        )
+    }
+
+    private fun f(v: Float) = String.format(Locale.US, "%.3f", v)
     }
 }

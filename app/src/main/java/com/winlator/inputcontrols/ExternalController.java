@@ -214,7 +214,7 @@ public class ExternalController {
     }
 
     /** Zero inside [deadzone] of the center, rescaled outside it so the full range stays reachable. */
-    static float[] applyStickDeadzone(float x, float y, float deadzone) {
+    public static float[] applyStickDeadzone(float x, float y, float deadzone) {
         if (deadzone <= 0f) return new float[] { x, y };
         float magnitude = (float) Math.sqrt(x * x + y * y);
         if (magnitude <= deadzone) return new float[] { 0f, 0f };
