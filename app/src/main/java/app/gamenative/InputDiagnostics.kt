@@ -77,5 +77,4 @@ object InputDiagnostics {
     }
 
     private fun f(v: Float) = String.format(Locale.US, "%.3f", v)
-    }
 }
